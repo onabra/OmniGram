@@ -4,6 +4,15 @@ import (
 	"time"
 )
 
+// اضافه کردن وضعیت کاربر برای جلوگیری از تداخل عملیات‌ها
+type UserState string
+
+const (
+	StateNormal   UserState = "NORMAL"
+	StateInGame   UserState = "IN_GAME"
+	StateWaitTask UserState = "WAITING_FOR_TASK_PROOF"
+)
+
 // Tenant (موجودیت اصلی برای معماری SaaS)
 type Tenant struct {
 	ID              uint   `gorm:"primaryKey"`
@@ -13,6 +22,27 @@ type Tenant struct {
 	OrderChannelID  string // آیدی کانال‌های سفارشات مربوط به همین کارفرما[cite: 1]
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
+}
+
+// Category (مثلاً ممبر، ویو، بوست)
+type Category struct {
+	ID       uint   `gorm:"primaryKey"`
+	TenantID uint   `gorm:"index"`
+	ParentID *uint  // برای زیرمجموعه‌سازی (مثلاً ممبر -> ایرانی -> گارانتی‌دار)
+	NameKey  string // فراخوانی از Translation بر اساس کلید
+	IsActive bool
+}
+
+// ServiceItem (مثلاً ممبر ایرانی گارانتی 30 روزه)
+type ServiceItem struct {
+	ID         uint `gorm:"primaryKey"`
+	CategoryID uint `gorm:"index"`
+	TenantID   uint `gorm:"index"`
+	Title      string
+	NameKey    string // کلید ترجمه نام سرویس
+	PriceToman float64
+	PriceStars float64
+	Capacity   int
 }
 
 // Translation (سیستم چندزبانه و بدون هاردکد)
@@ -36,6 +66,7 @@ type User struct {
 	StarsBalance   float64   // موجودی استارز کاربر[cite: 1]
 	Language       string    // زبان انتخابی کاربر برای نمایش متون[cite: 1]
 	LastActiveDate time.Time // تاریخ آخرین فعالیت برای محاسبه قانون ۱۰ روز خاموشی و تخصیص ۵۰٪ امتیاز به معرف جدید[cite: 1]
+	State          UserState `gorm:"default:'NORMAL'"` // برای جلوگیری از باز شدن چند بخش همزمان
 }
 
 // Referral (سیستم رفرال‌های ۴ گانه)
@@ -57,6 +88,31 @@ type Task struct {
 	StayDuration  int     // زمان ماندگاری در کانال/گروه (بر حسب ساعت یا روز)[cite: 1]
 	PenaltyAmount float64 // مبلغ جریمه در صورت لفت دادن از کانال‌های جوین اجباری[cite: 1]
 	RewardAmount  float64 // پاداشی که پس از تایید تسک داده می‌شود
+	TaskType      string  // "auto_join" یا "manual_proof"
+	RewardType    string  // "point" یا "toman"
+	RequiredDesc  string  // توضیحات ثبت نام آبان تتر
+	Description   string  // توضیحات برای تسک‌های دستی
+}
+
+type TaskSubmission struct {
+	ID       uint
+	TenantID uint
+	UserID   uint
+	TaskID   uint
+	Status   string // "pending", "approved", "rejected"
+	FileID   string // آیدی عکس اسکرین شات ارسالی
+}
+
+type GameSession struct {
+	ID          uint `gorm:"primaryKey"`
+	TenantID    uint `gorm:"index"`
+	CreatorID   uint
+	JoinerID    *uint
+	BetAmount   float64
+	GameType    string // "DICE" یا "CASINO"
+	Status      string // "WAITING", "IN_PROGRESS", "FINISHED"
+	CreatorRoll *int
+	JoinerRoll  *int
 }
 
 // VerifiedCard (سیستم KYC و احراز هویت)
