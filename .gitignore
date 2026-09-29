@@ -1,0 +1,27 @@
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test output and profiling
+*.test
+*.out
+coverage.out
+
+# Project specific binary
+OmniGram
+
+# Environment variables
+.env
+
+# GoLand / IntelliJ IDEA workspace
+.idea/
+
+# Dependency directories
+vendor/
+
+# OS specific files
+.DS_Store
+Thumbs.db
