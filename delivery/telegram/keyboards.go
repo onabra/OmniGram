@@ -94,3 +94,31 @@ func (kb *KeyboardBuilder) BuildDeveloperInlineMenu(tenantID uint, lang string, 
 	)
 	return keyboard, nil
 }
+
+// BuildUserAccountMenu ساخت منوی حساب کاربری با چیدمان درخواستی
+func (kb *KeyboardBuilder) BuildUserAccountMenu(tenantID uint, lang string) (tgbotapi.ReplyKeyboardMarkup, error) {
+	getText := func(key, fallback string) string {
+		text, err := kb.TranslationRepo.GetText(tenantID, lang, key)
+		if err != nil || text == "" {
+			return fallback
+		}
+		return text
+	}
+
+	btnBalance := getText("btn_balance", "موجودی")
+	btnTransfer := getText("btn_transfer", "انتقال")
+	btnRecentTxs := getText("btn_recent_txs", "تراکنشات اخیر")
+	btnRefStats := getText("btn_ref_stats", "رفرال ها")
+	btnSupport := getText("btn_support", "ارتباط با پشتیبانی")
+	btnBack := getText("btn_back_main", "بازگشت به منوی اصلی")
+
+	keyboard := tgbotapi.NewReplyKeyboard(
+		tgbotapi.NewKeyboardButtonRow(tgbotapi.NewKeyboardButton(btnBalance), tgbotapi.NewKeyboardButton(btnTransfer)),
+		tgbotapi.NewKeyboardButtonRow(tgbotapi.NewKeyboardButton(btnRecentTxs), tgbotapi.NewKeyboardButton(btnRefStats)),
+		tgbotapi.NewKeyboardButtonRow(tgbotapi.NewKeyboardButton(btnSupport)),
+		tgbotapi.NewKeyboardButtonRow(tgbotapi.NewKeyboardButton(btnBack)),
+	)
+
+	keyboard.ResizeKeyboard = true
+	return keyboard, nil
+}

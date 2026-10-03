@@ -1,6 +1,7 @@
 package telegram
 
 import (
+	"OmniGram/services"
 	"log"
 
 	"OmniGram/repository"
@@ -17,6 +18,8 @@ type PollingHandler struct {
 	MasterBotToken  string // توکنی که از .env خوانده می‌شود
 	UserRepo        repository.UserRepository
 	RefRepo         *repository.ReferralRepository
+	TxRepo          *repository.TransactionRepository
+	WalletService   *services.WalletService
 	SafeBot         *SafeBot
 }
 
@@ -79,6 +82,12 @@ func (h *PollingHandler) StartPolling() {
 				TranslationRepo: h.TranslationRepo,
 				KeyboardBuilder: h.KeyboardBuilder,
 				SafeBot:         h.SafeBot,
+
+				UserRepo:     h.UserRepo,
+				ReferralRepo: h.RefRepo,
+
+				TxRepo:        h.TxRepo,
+				WalletService: h.WalletService,
 			}
 
 			if update.Message.Command() == "start" {

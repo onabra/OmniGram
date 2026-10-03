@@ -8,20 +8,24 @@ import (
 type UserState string
 
 const (
-	StateNormal   UserState = "NORMAL"
-	StateInGame   UserState = "IN_GAME"
-	StateWaitTask UserState = "WAITING_FOR_TASK_PROOF"
+	StateNormal             UserState = "NORMAL"
+	StateInGame             UserState = "IN_GAME"
+	StateWaitTask           UserState = "WAITING_FOR_TASK_PROOF"
+	StateWaitTransferDest   UserState = "WAIT_TRANSFER_DEST"   // در انتظار ارسال آیدی مقصد
+	StateWaitTransferAmount UserState = "WAIT_TRANSFER_AMOUNT" // در انتظار ارسال مبلغ انتقال
 )
 
 // Tenant (موجودیت اصلی برای معماری SaaS)
 type Tenant struct {
-	ID              uint   `gorm:"primaryKey"`
-	BotToken        string // توکن اختصاصی ربات برای این کارفرما[cite: 1]
-	IsActive        bool   // وضعیت اشتراک (فعال/منقضی)[cite: 1]
-	ReportChannelID string // آیدی کانال‌های گزارش مربوط به همین کارفرما[cite: 1]
-	OrderChannelID  string // آیدی کانال‌های سفارشات مربوط به همین کارفرما[cite: 1]
-	CreatedAt       time.Time
-	UpdatedAt       time.Time
+	ID                  uint    `gorm:"primaryKey"`
+	BotToken            string  // توکن اختصاصی ربات برای این کارفرما[cite: 1]
+	IsActive            bool    // وضعیت اشتراک (فعال/منقضی)[cite: 1]
+	ReportChannelID     string  // آیدی کانال‌های گزارش مربوط به همین کارفرما[cite: 1]
+	OrderChannelID      string  // آیدی کانال‌های سفارشات مربوط به همین کارفرما[cite: 1]
+	TransferFeePercent  float64 // درصد کارمزد انتقال (مثلا 5.0 برای ۵ درصد)
+	InactiveBonusAmount float64 // مقدار امتیازی که اگر کاربر ۱۰ روز غیرفعال بود به معرف جدید میرسه
+	CreatedAt           time.Time
+	UpdatedAt           time.Time
 }
 
 // Category (مثلاً ممبر، ویو، بوست)
@@ -54,6 +58,16 @@ type Translation struct {
 	En       string // مقدار به زبان انگلیسی[cite: 1]
 	Ru       string // مقدار به زبان روسی[cite: 1]
 	Ar       string // مقدار به زبان عربی[cite: 1]
+}
+
+type Transaction struct {
+	ID        uint    `gorm:"primaryKey"`
+	TenantID  uint    `gorm:"index"`
+	UserID    uint    `gorm:"index"`
+	Amount    float64 // مقدار (مثبت برای واریز/دریافت، منفی برای خرید/انتقال)
+	Type      string  // "DEPOSIT", "PURCHASE", "TRANSFER"
+	Currency  string  // "TOMAN", "POINT", "STARS"
+	CreatedAt time.Time
 }
 
 // User (اطلاعات کاربران و کیف پول‌های سه‌گانه)

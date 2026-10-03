@@ -1,6 +1,7 @@
 package main
 
 import (
+	"OmniGram/services"
 	"log"
 
 	"OmniGram/core"
@@ -33,6 +34,7 @@ func main() {
 		&domain.GameSession{},
 		&domain.VerifiedCard{},
 		&domain.Order{},
+		&domain.Transaction{},
 	)
 	if err != nil {
 		log.Println("⚠️ خطا در مایگریشن جداول:", err)
@@ -50,6 +52,9 @@ func main() {
 	userRepo := repository.NewUserRepository(db)
 	refRepo := repository.NewReferralRepository(db)
 
+	txRepo := repository.NewTransactionRepository(db)
+	walletService := services.NewWalletService(userRepo, txRepo)
+
 	// ۴. مقداردهی ماژول کیبوردساز داینامیک
 	keyboardBuilder := &telegram.KeyboardBuilder{
 		TranslationRepo: translationRepo,
@@ -65,6 +70,9 @@ func main() {
 
 		UserRepo: userRepo,
 		RefRepo:  refRepo,
+
+		TxRepo:        txRepo,
+		WalletService: walletService,
 	}
 
 	// ۶. روشن کردن ربات و اجرای حلقه دریافت پیام‌ها
