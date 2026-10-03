@@ -76,3 +76,14 @@ func (s *SafeBot) SafeDeleteMessage(chatID int64, messageID int) bool {
 	}
 	return true
 }
+
+// SendMessage ارسال پیام متنی ساده به کاربر (مورد نیاز برای اطلاع‌رسانی رفرال)
+func (s *SafeBot) SendMessage(chatID int64, text string) error {
+	msg := tgbotapi.NewMessage(chatID, text)
+	msg.ParseMode = "Markdown"
+	_, err := s.Bot.Send(msg)
+	if err != nil {
+		s.sendLogToChannel(fmt.Sprintf("SendMessage Error [Chat: %d]: %v", chatID, err))
+	}
+	return err
+}

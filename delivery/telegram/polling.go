@@ -82,7 +82,8 @@ func (h *PollingHandler) StartPolling() {
 			}
 
 			if update.Message.Command() == "start" {
-				botHandler.HandleStart(tenant, chatID, lang)
+
+				botHandler.HandleStart(tenant, chatID, lang, update.Message.Text)
 			} else if update.Message.Text != "" {
 				botHandler.HandleMessage(tenant, chatID, update.Message.Text, lang)
 			}

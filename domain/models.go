@@ -58,9 +58,10 @@ type Translation struct {
 
 // User (اطلاعات کاربران و کیف پول‌های سه‌گانه)
 type User struct {
-	ID             uint      `gorm:"primaryKey"`
-	TenantID       uint      `gorm:"index"` // فیلد کلیدی برای ایزوله ماندن داده‌های کارفرما[cite: 1]
-	TelegramID     int64     `gorm:"index"` // شناسه کاربری در تلگرام
+	ID             uint  `gorm:"primaryKey"`
+	TenantID       uint  `gorm:"index"` // فیلد کلیدی برای ایزوله ماندن داده‌های کارفرما[cite: 1]
+	TelegramID     int64 `gorm:"index"` // شناسه کاربری در تلگرام
+	FirstName      string
 	TomanBalance   float64   // موجودی تومانی کاربر[cite: 1]
 	PointBalance   float64   // موجودی امتیازی کاربر[cite: 1]
 	StarsBalance   float64   // موجودی استارز کاربر[cite: 1]
@@ -77,6 +78,7 @@ type Referral struct {
 	ReferredID   uint   `gorm:"index"` // شناسه کاربر دعوت شده (زیرمجموعه)
 	ReferralType string // نوع لینک: استارز، گیفت، لیگ، یا قرعه‌کشی[cite: 1]
 	// با استفاده از تگ‌های gorm باید یکتایی (Unique) روی ترکیب ReferrerID, ReferredID و ReferralType ایجاد شود تا از تداخل جلوگیری شود[cite: 1]
+	Status string `gorm:"default:'PENDING'"` // مقادیر: PENDING, APPROVED, REJECTED
 }
 
 // Task (وظایف، ظرفیت‌ها و جریمه‌ها)

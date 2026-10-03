@@ -2,6 +2,7 @@ package repository
 
 import (
 	"OmniGram/domain" // نام ماژول خود را جایگزین کنید
+
 	"gorm.io/gorm"
 )
 
@@ -10,10 +11,34 @@ type UserRepository interface {
 	CreateUser(user *domain.User) error
 	GetUserByTelegramID(tenantID uint, telegramID int64) (*domain.User, error)
 	UpdateBalances(tenantID uint, userID uint, toman, point, stars float64) error
+
+	GetUserByID(tenantID uint, id uint) (*domain.User, error)
+	AddBalances(tenantID uint, userID uint, toman, point, stars float64) error
 }
 
 type userRepository struct {
 	db *gorm.DB
+}
+
+// GetUserByID جستجوی کاربر با آیدی دیتابیس
+func (r *userRepository) GetUserByID(tenantID uint, id uint) (*domain.User, error) {
+	var user domain.User
+	err := r.db.Where("tenant_id = ? AND id = ?", tenantID, id).First(&user).Error
+	if err != nil {
+		return nil, err
+	}
+	return &user, nil
+}
+
+// AddBalances افزایش موجودی کاربر
+func (r *userRepository) AddBalances(tenantID uint, userID uint, toman, point, stars float64) error {
+	return r.db.Model(&domain.User{}).
+		Where("tenant_id = ? AND id = ?", tenantID, userID).
+		Updates(map[string]interface{}{
+			"toman_balance": gorm.Expr("toman_balance + ?", toman),
+			"point_balance": gorm.Expr("point_balance + ?", point),
+			"stars_balance": gorm.Expr("stars_balance + ?", stars),
+		}).Error
 }
 
 func NewUserRepository(db *gorm.DB) UserRepository {
