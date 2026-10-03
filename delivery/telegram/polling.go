@@ -24,6 +24,12 @@ type PollingHandler struct {
 	WalletService   *services.WalletService
 	SafeBot         *SafeBot
 	Logger          *core.CentralLogger
+
+	OrderRepo *repository.OrderRepository
+
+	ServiceRepo *repository.ServiceRepository
+
+	TaskRepo *repository.TaskRepository
 }
 
 func (h *PollingHandler) StartPolling() {
@@ -103,6 +109,11 @@ func (h *PollingHandler) processUpdateWithRecovery(update tgbotapi.Update) {
 			ReferralRepo:    h.RefRepo,
 			TxRepo:          h.TxRepo,
 			WalletService:   h.WalletService,
+
+			OrderRepo:   h.OrderRepo,
+			ServiceRepo: h.ServiceRepo,
+
+			TaskRepo: h.TaskRepo,
 		}
 
 		if update.Message.Command() == "start" {

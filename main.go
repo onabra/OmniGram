@@ -55,6 +55,11 @@ func main() {
 	txRepo := repository.NewTransactionRepository(db)
 	walletService := services.NewWalletService(userRepo, txRepo, appLogger)
 
+	orderRepo := &repository.OrderRepository{DB: db}
+	serviceRepo := &repository.ServiceRepository{DB: db}
+
+	taskRepo := &repository.TaskRepository{DB: db}
+
 	// ۴. مقداردهی ماژول کیبوردساز داینامیک
 	keyboardBuilder := &telegram.KeyboardBuilder{
 		TranslationRepo: translationRepo,
@@ -75,6 +80,11 @@ func main() {
 		WalletService: walletService,
 
 		Logger: appLogger,
+
+		OrderRepo:   orderRepo,
+		ServiceRepo: serviceRepo,
+
+		TaskRepo: taskRepo,
 	}
 
 	// ۶. روشن کردن ربات و اجرای حلقه دریافت پیام‌ها

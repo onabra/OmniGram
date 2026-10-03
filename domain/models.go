@@ -13,6 +13,10 @@ const (
 	StateWaitTask           UserState = "WAITING_FOR_TASK_PROOF"
 	StateWaitTransferDest   UserState = "WAIT_TRANSFER_DEST"   // در انتظار ارسال آیدی مقصد
 	StateWaitTransferAmount UserState = "WAIT_TRANSFER_AMOUNT" // در انتظار ارسال مبلغ انتقال
+
+	// Sponsorship States added
+	StateWaitSponsorLink  UserState = "WAIT_SPONSOR_LINK"  // Waiting for sponsor to send their channel/group link
+	StateWaitSponsorCount UserState = "WAIT_SPONSOR_COUNT" // Waiting for sponsor to send the requested member count
 )
 
 // Tenant (موجودیت اصلی برای معماری SaaS)
@@ -99,13 +103,16 @@ type Referral struct {
 type Task struct {
 	ID            uint    `gorm:"primaryKey"`
 	TenantID      uint    `gorm:"index"`
+	OrderID       uint    `gorm:"index"` // اضافه شده: ارتباط این تسک با سفارش اسپانسر
 	Title         string  // عنوان وظیفه
-	Capacity      int     // ظرفیت تعیین شده برای انجام تسک[cite: 1]
-	StayDuration  int     // زمان ماندگاری در کانال/گروه (بر حسب ساعت یا روز)[cite: 1]
-	PenaltyAmount float64 // مبلغ جریمه در صورت لفت دادن از کانال‌های جوین اجباری[cite: 1]
+	TargetLink    string  // اضافه شده: لینک کانال/گروه اسپانسر برای عضویت کاربران
+	Capacity      int     // ظرفیت تعیین شده برای انجام تسک (همان تعداد ممبر درخواستی)
+	StayDuration  int     // زمان ماندگاری در کانال/گروه (بر حسب ساعت یا روز)
+	PenaltyAmount float64 // مبلغ جریمه در صورت لفت دادن از کانال‌های جوین اجباری
 	RewardAmount  float64 // پاداشی که پس از تایید تسک داده می‌شود
 	TaskType      string  // "auto_join" یا "manual_proof"
 	RewardType    string  // "point" یا "toman"
+	Status        string  // اضافه شده: "ACTIVE", "COMPLETED", "PAUSED"
 	RequiredDesc  string  // توضیحات ثبت نام آبان تتر
 	Description   string  // توضیحات برای تسک‌های دستی
 }
@@ -142,12 +149,23 @@ type VerifiedCard struct {
 
 // Order (رهگیری و مدیریت سفارشات)
 type Order struct {
-	ID               uint   `gorm:"primaryKey"`
-	TenantID         uint   `gorm:"index"`
-	UserID           uint   `gorm:"index"`
-	TrackingCode     string `gorm:"uniqueIndex"` // کد یکتای رهگیری سفارشات[cite: 1]
-	Status           string // وضعیت فعلی سفارش (در انتظار، تکمیل، لغو)[cite: 1]
-	CancelRequested  bool   // ثبت درخواست لغو سفارش با محاسبه ۱۰٪ کارمزد[cite: 1]
-	HasRefill        bool   // وضعیت درخواست ریفیل (ریزش)[cite: 1]
-	SpeedUpRequested bool   // درخواست سرعت‌دهی به سفارش[cite: 1]
+	ID           uint   `gorm:"primaryKey"`
+	TenantID     uint   `gorm:"index"`
+	UserID       uint   `gorm:"index"`
+	TrackingCode string `gorm:"uniqueIndex"` // کد یکتای رهگیری سفارشات[cite: 1]
+
+	// Sponsorship & Service Fields added
+	ServiceItemID uint   `gorm:"index"` // ارتباط با ServiceItem (مثلا ممبر کیفیت بالا)
+	TargetLink    string // لینک کانال/گروه اسپانسر برای انجام تسک
+	Quantity      int    // تعداد ممبر درخواستی
+
+	// Payment Fields added
+	TotalAmount   float64 // مبلغ کل محاسبه شده سفارش
+	PaymentMethod string  // روش پرداخت: WALLET_TOMAN, WALLET_POINT, STARS, GATEWAY, CARD
+	PaymentStatus string  // وضعیت پرداخت: PENDING, PAID, REJECTED
+
+	Status           string // وضعیت فعلی سفارش (در انتظار، تکمیل، لغو)
+	CancelRequested  bool   // ثبت درخواست لغو سفارش با محاسبه ۱۰٪ کارمزد
+	HasRefill        bool   // وضعیت درخواست ریفیل (ریزش)
+	SpeedUpRequested bool   // درخواست سرعت‌دهی به سفارش
 }

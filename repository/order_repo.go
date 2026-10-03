@@ -31,3 +31,26 @@ func (r *OrderRepository) RequestCancel(tenantID uint, orderID uint) error {
 		Where("id = ? AND tenant_id = ?", orderID, tenantID).
 		Update("cancel_requested", true).Error
 }
+
+func (r *OrderRepository) UpdateOrder(order *domain.Order) error {
+	return r.DB.Save(order).Error
+}
+
+// GetDraftOrder دریافت سفارش پیش‌نویس کاربر با رعایت ایزوله‌سازی
+func (r *OrderRepository) GetDraftOrder(tenantID uint, userID uint) (*domain.Order, error) {
+	var order domain.Order
+	err := r.DB.Where("tenant_id = ? AND user_id = ? AND status = ?", tenantID, userID, "DRAFT").First(&order).Error
+	if err != nil {
+		return nil, err
+	}
+	return &order, nil
+}
+
+func (r *OrderRepository) GetOrderByID(tenantID uint, id uint) (*domain.Order, error) {
+	var order domain.Order
+	err := r.DB.Where("tenant_id = ? AND id = ?", tenantID, id).First(&order).Error
+	if err != nil {
+		return nil, err
+	}
+	return &order, nil
+}

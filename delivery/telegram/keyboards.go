@@ -2,6 +2,7 @@ package telegram
 
 import (
 	"OmniGram/repository"
+	"fmt"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
@@ -116,6 +117,85 @@ func (kb *KeyboardBuilder) BuildUserAccountMenu(tenantID uint, lang string) (tgb
 		tgbotapi.NewKeyboardButtonRow(tgbotapi.NewKeyboardButton(btnBalance), tgbotapi.NewKeyboardButton(btnTransfer)),
 		tgbotapi.NewKeyboardButtonRow(tgbotapi.NewKeyboardButton(btnRecentTxs), tgbotapi.NewKeyboardButton(btnRefStats)),
 		tgbotapi.NewKeyboardButtonRow(tgbotapi.NewKeyboardButton(btnSupport)),
+		tgbotapi.NewKeyboardButtonRow(tgbotapi.NewKeyboardButton(btnBack)),
+	)
+
+	keyboard.ResizeKeyboard = true
+	return keyboard, nil
+}
+
+// feat(keyboard): add sponsor quality and payment method inline keyboards
+
+// BuildSponsorQualityMenu ساخت منوی انتخاب کیفیت ممبر برای اسپانسر
+func (kb *KeyboardBuilder) BuildSponsorQualityMenu(tenantID uint, lang string) (tgbotapi.InlineKeyboardMarkup, error) {
+	getText := func(key, fallback string) string {
+		text, err := kb.TranslationRepo.GetText(tenantID, lang, key)
+		if err != nil || text == "" {
+			return fallback
+		}
+		return text
+	}
+
+	btnShop := getText("btn_quality_shop", "🌟 کیفیت بالا (شاپ)")
+	btnNormal := getText("btn_quality_normal", "⭐ کیفیت متوسط")
+	btnEco := getText("btn_quality_eco", "⚡ کیفیت اقتصادی")
+
+	keyboard := tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(tgbotapi.NewInlineKeyboardButtonData(btnShop, "sponsor_quality_shop")),
+		tgbotapi.NewInlineKeyboardRow(tgbotapi.NewInlineKeyboardButtonData(btnNormal, "sponsor_quality_normal")),
+		tgbotapi.NewInlineKeyboardRow(tgbotapi.NewInlineKeyboardButtonData(btnEco, "sponsor_quality_eco")),
+	)
+	return keyboard, nil
+}
+
+// BuildPaymentMethodMenu ساخت منوی انتخاب روش پرداخت برای اسپانسر
+func (kb *KeyboardBuilder) BuildPaymentMethodMenu(tenantID uint, lang string, orderID uint) (tgbotapi.InlineKeyboardMarkup, error) {
+	getText := func(key, fallback string) string {
+		text, err := kb.TranslationRepo.GetText(tenantID, lang, key)
+		if err != nil || text == "" {
+			return fallback
+		}
+		return text
+	}
+
+	btnWalletToman := getText("btn_pay_toman", "💳 کیف پول (تومان)")
+	btnWalletPoint := getText("btn_pay_point", "🎁 کیف پول (امتیاز)")
+	btnStars := getText("btn_pay_stars", "⭐ پرداخت استارز")
+	btnGateway := getText("btn_pay_gateway", "🔗 درگاه پرداخت")
+
+	idStr := fmt.Sprintf("%d", orderID) // تزریق آیدی سفارش به دیتای دکمه جهت رهگیری
+
+	keyboard := tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(tgbotapi.NewInlineKeyboardButtonData(btnWalletToman, "pay_toman_"+idStr)),
+		tgbotapi.NewInlineKeyboardRow(tgbotapi.NewInlineKeyboardButtonData(btnWalletPoint, "pay_point_"+idStr)),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData(btnStars, "pay_stars_"+idStr),
+			tgbotapi.NewInlineKeyboardButtonData(btnGateway, "pay_gate_"+idStr),
+		),
+	)
+	return keyboard, nil
+}
+
+// [delivery/telegram/keyboards.go]
+// feat(keyboard): add Tasks sub-menu containing Sponsor button
+
+// BuildTasksSubMenu ساخت زیرمنوی وظایف شامل دکمه اسپانسر شدن
+func (kb *KeyboardBuilder) BuildTasksSubMenu(tenantID uint, lang string) (tgbotapi.ReplyKeyboardMarkup, error) {
+	getText := func(key, fallback string) string {
+		text, err := kb.TranslationRepo.GetText(tenantID, lang, key)
+		if err != nil || text == "" {
+			return fallback
+		}
+		return text
+	}
+
+	btnDoTasks := getText("btn_do_tasks", "📝 انجام وظایف (کسب درآمد)")
+	btnSponsor := getText("btn_sponsor", "📢 اسپانسر شدن (جذب ممبر)")
+	btnBack := getText("btn_back_main", "بازگشت به منوی اصلی")
+
+	keyboard := tgbotapi.NewReplyKeyboard(
+		tgbotapi.NewKeyboardButtonRow(tgbotapi.NewKeyboardButton(btnDoTasks)),
+		tgbotapi.NewKeyboardButtonRow(tgbotapi.NewKeyboardButton(btnSponsor)),
 		tgbotapi.NewKeyboardButtonRow(tgbotapi.NewKeyboardButton(btnBack)),
 	)
 

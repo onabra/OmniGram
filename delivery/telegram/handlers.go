@@ -24,6 +24,11 @@ type BotHandler struct {
 
 	TxRepo        *repository.TransactionRepository
 	WalletService *services.WalletService
+
+	OrderRepo   *repository.OrderRepository
+	ServiceRepo *repository.ServiceRepository
+
+	TaskRepo *repository.TaskRepository
 }
 
 // HandleStart مدیریت دستور /start
@@ -68,7 +73,6 @@ func (h *BotHandler) HandleStart(tenant *domain.Tenant, chatID int64, lang strin
 }
 
 // HandleMessage مدیریت پیام‌های متنی ارسالی از سمت کاربر
-// HandleMessage مدیریت پیام‌های متنی ارسالی از سمت کاربر
 func (h *BotHandler) HandleMessage(tenant *domain.Tenant, chatID int64, text string, lang string) {
 	// تابع کمکی برای گرفتن سریع متن‌ها
 	getText := func(key, fallback string) string {
@@ -89,6 +93,9 @@ func (h *BotHandler) HandleMessage(tenant *domain.Tenant, chatID int64, text str
 	recentTxsBtnText := getText("btn_recent_txs", "تراکنشات اخیر")
 	transferBtnText := getText("btn_transfer", "انتقال")
 
+	taskMenuBtnText := getText("btn_task", "وظایف")
+	sponsorBtnText := getText("btn_sponsor", "📢 اسپانسر شدن (جذب ممبر)")
+
 	// پیدا کردن کاربر از دیتابیس برای عملیاتی که نیاز به اطلاعات کاربر دارند
 	// پیدا کردن کاربر از دیتابیس
 	currentUser, err := h.UserRepo.GetUserByTelegramID(tenant.ID, chatID)
@@ -103,6 +110,72 @@ func (h *BotHandler) HandleMessage(tenant *domain.Tenant, chatID int64, text str
 			State:      domain.StateNormal,
 		}
 		_ = h.UserRepo.CreateUser(currentUser)
+	}
+
+	if currentUser.State == domain.StateWaitSponsorLink {
+		// اگر کاربر دکمه بازگشت را زد، وضعیتش را ریست می‌کنیم
+		if text == backMainBtnText {
+			_ = h.UserRepo.UpdateUserState(tenant.ID, currentUser.ID, domain.StateNormal)
+		} else {
+			draftOrder, err := h.OrderRepo.GetDraftOrder(tenant.ID, currentUser.ID)
+			if err != nil {
+				_ = h.SafeBot.SendMessage(chatID, "سفارش پیش‌نویسی یافت نشد. لطفاً دوباره از منو اقدام کنید.")
+				_ = h.UserRepo.UpdateUserState(tenant.ID, currentUser.ID, domain.StateNormal)
+				return
+			}
+
+			// آپدیت لینک و تغییر وضعیت به گرفتن تعداد
+			draftOrder.TargetLink = text
+			_ = h.OrderRepo.UpdateOrder(draftOrder)
+			_ = h.UserRepo.UpdateUserState(tenant.ID, currentUser.ID, domain.StateWaitSponsorCount)
+
+			_ = h.SafeBot.SendMessage(chatID, "✅ لینک با موفقیت ثبت شد.\n\n🔢 لطفاً تعداد ممبر درخواستی خود را فقط به صورت عدد ارسال کنید (مثلاً 1000):")
+			return
+		}
+	}
+
+	if currentUser.State == domain.StateWaitSponsorCount {
+		if text == backMainBtnText {
+			_ = h.UserRepo.UpdateUserState(tenant.ID, currentUser.ID, domain.StateNormal)
+		} else {
+			quantity, err := strconv.Atoi(text)
+			if err != nil || quantity <= 0 {
+				_ = h.SafeBot.SendMessage(chatID, "❌ لطفاً یک عدد معتبر بزرگتر از صفر ارسال کنید.")
+				return
+			}
+
+			draftOrder, err := h.OrderRepo.GetDraftOrder(tenant.ID, currentUser.ID)
+			if err != nil {
+				_ = h.SafeBot.SendMessage(chatID, "سفارش پیش‌نویسی یافت نشد. لطفاً دوباره تلاش کنید.")
+				_ = h.UserRepo.UpdateUserState(tenant.ID, currentUser.ID, domain.StateNormal)
+				return
+			}
+
+			// واکشی قیمت از سرویس
+			serviceItem, err := h.ServiceRepo.GetServiceByID(tenant.ID, draftOrder.ServiceItemID)
+			if err != nil {
+				_ = h.SafeBot.SendMessage(chatID, "خطا در دریافت قیمت سرویس.")
+				return
+			}
+
+			// محاسبه قیمت (با فرض اینکه قیمت پایه به تومان است)
+			totalAmount := float64(quantity) * serviceItem.PriceToman
+			draftOrder.Quantity = quantity
+			draftOrder.TotalAmount = totalAmount
+			_ = h.OrderRepo.UpdateOrder(draftOrder)
+
+			// خروج کاربر از وضعیت اسپانسرینگ
+			_ = h.UserRepo.UpdateUserState(tenant.ID, currentUser.ID, domain.StateNormal)
+
+			// ارسال فاکتور و کیبورد پرداخت با سیستم ایزوله‌سازی
+			msgText := fmt.Sprintf("✅ فاکتور سفارش شما:\n\n🔗 لینک: %s\n👥 تعداد درخواستی: %d\n💰 مبلغ کل: %.0f تومان\n\n👇 لطفاً روش پرداخت را انتخاب کنید:", draftOrder.TargetLink, quantity, totalAmount)
+			paymentMenu, _ := h.KeyboardBuilder.BuildPaymentMethodMenu(tenant.ID, lang, draftOrder.ID)
+
+			msg := tgbotapi.NewMessage(chatID, msgText)
+			msg.ReplyMarkup = paymentMenu
+			_, _ = h.SafeBot.Bot.Send(msg)
+			return
+		}
 	}
 
 	switch text {
@@ -181,6 +254,24 @@ func (h *BotHandler) HandleMessage(tenant *domain.Tenant, chatID int64, text str
 
 		msg := tgbotapi.NewMessage(chatID, msgText)
 		msg.ReplyMarkup = mainMenu
+		_, _ = h.SafeBot.Bot.Send(msg)
+
+	case taskMenuBtnText:
+		// باز کردن زیرمنوی وظایف
+		msgText := getText("msg_task_section", "به بخش وظایف خوش آمدید. می‌خواهید تسک انجام دهید یا اسپانسر شوید؟")
+		taskMenu, _ := h.KeyboardBuilder.BuildTasksSubMenu(tenant.ID, lang)
+
+		msg := tgbotapi.NewMessage(chatID, msgText)
+		msg.ReplyMarkup = taskMenu
+		_, _ = h.SafeBot.Bot.Send(msg)
+
+	case sponsorBtnText:
+		// استارت فرآیند اسپانسر شدن (نمایش دکمه‌های شیشه‌ای انتخاب کیفیت)
+		msgText := getText("msg_choose_sponsor_quality", "لطفاً کیفیت ممبر درخواستی خود را برای تسک انتخاب کنید:")
+		sponsorMenu, _ := h.KeyboardBuilder.BuildSponsorQualityMenu(tenant.ID, lang)
+
+		msg := tgbotapi.NewMessage(chatID, msgText)
+		msg.ReplyMarkup = sponsorMenu
 		_, _ = h.SafeBot.Bot.Send(msg)
 
 	default:

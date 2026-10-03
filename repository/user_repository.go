@@ -8,6 +8,7 @@ import (
 
 // UserRepository اینترفیسی برای مدیریت کاربران
 type UserRepository interface {
+	UpdateUserState(tenantID uint, userID uint, state domain.UserState) error
 	CreateUser(user *domain.User) error
 	GetUserByTelegramID(tenantID uint, telegramID int64) (*domain.User, error)
 	UpdateBalances(tenantID uint, userID uint, toman, point, stars float64) error
@@ -70,4 +71,11 @@ func (r *userRepository) UpdateBalances(tenantID uint, userID uint, toman, point
 			"point_balance": point,
 			"stars_balance": stars,
 		}).Error
+}
+
+// UpdateUserState تغییر وضعیت کاربر برای مدیریت عملیات‌های چند مرحله‌ای
+func (r *userRepository) UpdateUserState(tenantID uint, userID uint, state domain.UserState) error {
+	return r.db.Model(&domain.User{}).
+		Where("tenant_id = ? AND id = ?", tenantID, userID).
+		Update("state", state).Error
 }
