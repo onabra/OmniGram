@@ -8,7 +8,7 @@ import (
 )
 
 // HandleChatMemberUpdate بررسی لفت دادن کاربران از کانال اجباری
-func (h *WebhookHandler) HandleChatMemberUpdate(tenant *domain.Tenant, chatMember *tgbotapi.ChatMemberUpdated) {
+func (h *PollingHandler) HandleChatMemberUpdate(tenant *domain.Tenant, chatMember *tgbotapi.ChatMemberUpdated) {
 	status := chatMember.NewChatMember.Status
 	userID := chatMember.NewChatMember.User.ID
 

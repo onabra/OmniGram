@@ -10,7 +10,7 @@ import (
 )
 
 // SendSaaSErrorLog ارسال امن خطاها به کانال مانیتورینگ با تفکیک پروژه
-func (h *WebhookHandler) SendSaaSErrorLog(tenant *domain.Tenant, section string, errText string) {
+func (h *PollingHandler) SendSaaSErrorLog(tenant *domain.Tenant, section string, errText string) {
 	if h.LogChannelID == 0 || h.MasterBotToken == "" {
 		return // اگر تنظیمات لاگ وارد نشده بود، عملیات متوقف می‌شود
 	}

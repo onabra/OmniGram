@@ -9,7 +9,7 @@ import (
 )
 
 // HandleCallback هندل کردن منوهای شیشه‌ای و جایگزینی صفحات
-func (h *WebhookHandler) HandleCallback(tenant *domain.Tenant, update tgbotapi.Update, lang string) {
+func (h *PollingHandler) HandleCallback(tenant *domain.Tenant, update tgbotapi.Update, lang string) {
 	callback := update.CallbackQuery
 	data := callback.Data
 	chatID := callback.Message.Chat.ID
@@ -37,7 +37,7 @@ func (h *WebhookHandler) HandleCallback(tenant *domain.Tenant, update tgbotapi.U
 }
 
 // buildMainCategoryMenu نمایش دسته‌های اصلی (شبیه‌ساز دیتابیس)
-func (h *WebhookHandler) buildMainCategoryMenu() (*tgbotapi.InlineKeyboardMarkup, string) {
+func (h *PollingHandler) buildMainCategoryMenu() (*tgbotapi.InlineKeyboardMarkup, string) {
 	keyboard := tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("〔ممبر〕", "cat_1"),
@@ -52,7 +52,7 @@ func (h *WebhookHandler) buildMainCategoryMenu() (*tgbotapi.InlineKeyboardMarkup
 }
 
 // buildSubCategoryMenu نمایش زیرمجموعه‌های یک دسته همراه با دکمه بازگشت
-func (h *WebhookHandler) buildSubCategoryMenu(parentID uint) (*tgbotapi.InlineKeyboardMarkup, string) {
+func (h *PollingHandler) buildSubCategoryMenu(parentID uint) (*tgbotapi.InlineKeyboardMarkup, string) {
 	var keyboard tgbotapi.InlineKeyboardMarkup
 
 	if parentID == 1 { // فرض کنیم 1 آیدی ممبر است

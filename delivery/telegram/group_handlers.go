@@ -9,7 +9,7 @@ import (
 )
 
 // HandleGroupMessage پردازش پیام‌ها و بازی‌ها در گروه‌ها
-func (h *WebhookHandler) HandleGroupMessage(tenant *domain.Tenant, message *tgbotapi.Message) {
+func (h *PollingHandler) HandleGroupMessage(tenant *domain.Tenant, message *tgbotapi.Message) {
 
 	// تشخیص ارسال پیام متنی (مثل کلمه 'بازی 2')
 	if message.Text != "" {
