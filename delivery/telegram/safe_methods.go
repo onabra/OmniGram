@@ -14,8 +14,8 @@ type SafeBot struct {
 	LogChannelID int64 // آیدی عددی کانال لاگ (مثلاً -100123456789)
 }
 
-// sendLogToChannel ارسال پیام خطای فرمت‌بندی شده به کانال لاگ
-func (s *SafeBot) sendLogToChannel(errMsg string) {
+// SendLogToChannel ارسال پیام خطای فرمت‌بندی شده به کانال لاگ
+func (s *SafeBot) SendLogToChannel(errMsg string) {
 	if s.LogChannelID != 0 {
 		msg := tgbotapi.NewMessage(s.LogChannelID, "⚠️ *خطای سیستمی ربات:*\n\n`"+errMsg+"`")
 		msg.ParseMode = "Markdown"
@@ -40,7 +40,7 @@ func (s *SafeBot) SafeEditText(chatID int64, messageID int, text string, markup 
 		}
 
 		log.Printf("Failed to edit message: %v", err)
-		s.sendLogToChannel(fmt.Sprintf("SafeEditText Error [Chat: %d]: %v", chatID, err))
+		s.SendLogToChannel(fmt.Sprintf("SafeEditText Error [Chat: %d]: %v", chatID, err))
 		return false
 	}
 	return true
@@ -60,7 +60,7 @@ func (s *SafeBot) SafeAnswerCallback(queryID string, text string, showAlert bool
 		}
 
 		log.Printf("Failed to answer callback: %v", err)
-		s.sendLogToChannel(fmt.Sprintf("SafeAnswerCallback Error: %v", err))
+		s.SendLogToChannel(fmt.Sprintf("SafeAnswerCallback Error: %v", err))
 		return false
 	}
 	return true
@@ -83,7 +83,7 @@ func (s *SafeBot) SendMessage(chatID int64, text string) error {
 	msg.ParseMode = "Markdown"
 	_, err := s.Bot.Send(msg)
 	if err != nil {
-		s.sendLogToChannel(fmt.Sprintf("SendMessage Error [Chat: %d]: %v", chatID, err))
+		s.SendLogToChannel(fmt.Sprintf("SendMessage Error [Chat: %d]: %v", chatID, err))
 	}
 	return err
 }

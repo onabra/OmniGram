@@ -63,7 +63,7 @@ func (h *BotHandler) HandleStart(tenant *domain.Tenant, chatID int64, lang strin
 	msg.ReplyMarkup = mainMenu
 
 	if _, err := h.SafeBot.Bot.Send(msg); err != nil {
-		h.SafeBot.sendLogToChannel(err.Error())
+		h.SafeBot.SendLogToChannel(err.Error())
 	}
 }
 

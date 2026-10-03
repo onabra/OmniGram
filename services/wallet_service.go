@@ -1,6 +1,7 @@
 package services
 
 import (
+	"OmniGram/core"
 	"OmniGram/domain"
 	"OmniGram/repository"
 	"errors"
@@ -9,12 +10,17 @@ import (
 type WalletService struct {
 	UserRepo repository.UserRepository
 	TxRepo   *repository.TransactionRepository
+	Logger   *core.CentralLogger
 }
 
-func NewWalletService(userRepo repository.UserRepository, txRepo *repository.TransactionRepository) *WalletService {
+func NewWalletService(
+	userRepo repository.UserRepository,
+	txRepo *repository.TransactionRepository,
+	logger *core.CentralLogger) *WalletService {
 	return &WalletService{
 		UserRepo: userRepo,
 		TxRepo:   txRepo,
+		Logger:   logger,
 	}
 }
 
@@ -80,13 +86,14 @@ func (s *WalletService) TransferBalance(tenantID uint, senderID uint, destTelegr
 	// 5. کسر موجودی از فرستنده
 	err = s.UserRepo.AddBalances(tenantID, sender.ID, sToman, sPoint, sStars)
 	if err != nil {
+		s.Logger.Error("WalletService - AddBalances (Decrease Sender)", err)
 		return errors.New("خطا در کسر موجودی از حساب شما")
 	}
 
 	// 6. واریز موجودی به گیرنده
 	err = s.UserRepo.AddBalances(tenantID, receiver.ID, rToman, rPoint, rStars)
 	if err != nil {
-		// (در یک سیستم بانکی واقعی اینجا تراکنش فرستنده رول‌بک می‌شود)
+		s.Logger.Error("WalletService - AddBalances (Increase Receiver)", err)
 		return errors.New("خطا در واریز به حساب مقصد")
 	}
 

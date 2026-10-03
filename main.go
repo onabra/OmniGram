@@ -19,7 +19,7 @@ func main() {
 	if err != nil {
 		log.Fatal("DB connection failed:", err)
 	}
-
+	appLogger := core.NewCentralLogger()
 	// --- جایگزینی: مایگریشن کامل تمام جداول برای حل ارور relation does not exist ---
 	log.Println("در حال ساخت و آپدیت جداول دیتابیس...")
 	err = db.AutoMigrate(
@@ -53,7 +53,7 @@ func main() {
 	refRepo := repository.NewReferralRepository(db)
 
 	txRepo := repository.NewTransactionRepository(db)
-	walletService := services.NewWalletService(userRepo, txRepo)
+	walletService := services.NewWalletService(userRepo, txRepo, appLogger)
 
 	// ۴. مقداردهی ماژول کیبوردساز داینامیک
 	keyboardBuilder := &telegram.KeyboardBuilder{
@@ -73,6 +73,8 @@ func main() {
 
 		TxRepo:        txRepo,
 		WalletService: walletService,
+
+		Logger: appLogger,
 	}
 
 	// ۶. روشن کردن ربات و اجرای حلقه دریافت پیام‌ها
