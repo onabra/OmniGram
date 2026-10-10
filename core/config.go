@@ -4,6 +4,7 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/joho/godotenv"
 )
@@ -16,6 +17,9 @@ type AppConfig struct {
 	RedisPassword  string
 	LogChannelID   int64
 	MasterBotToken string // فیلد اضافه شده برای توکن ربات ارشد
+
+	SuperAdminIDs []int64 // اضافه شده برای آیدی سوپرادمین‌ها
+	AdminIDs      []int64 // اضافه شده برای آیدی مدیران
 }
 
 // LoadConfig مدیریت مرکزی متغیرهای محیطی و اتصال به دیتابیس.
@@ -33,8 +37,30 @@ func LoadConfig() *AppConfig {
 		RedisAddr:      getEnv("REDIS_ADDR", "localhost:6379"),
 		RedisPassword:  getEnv("REDIS_PASSWORD", ""),
 		LogChannelID:   logChannelID,
-		MasterBotToken: getEnv("MASTER_BOT_TOKEN", ""), // خواندن توکن از متغیرهای محیطی
+		MasterBotToken: getEnv("MASTER_BOT_TOKEN", ""),
+
+		SuperAdminIDs: getEnvAsIntSlice("SUPER_ADMIN_IDS"),
+		AdminIDs:      getEnvAsIntSlice("ADMIN_IDS"),
 	}
+}
+
+// [core/config.go]
+// getEnvAsIntSlice تابع کمکی برای تبدیل لیست آیدی‌های کاما سپریت شده به آرایه عددی
+func getEnvAsIntSlice(key string) []int64 {
+	valStr := os.Getenv(key)
+	if valStr == "" {
+		return nil
+	}
+
+	strSlice := strings.Split(valStr, ",")
+	var intSlice []int64
+	for _, s := range strSlice {
+		s = strings.TrimSpace(s)
+		if id, err := strconv.ParseInt(s, 10, 64); err == nil {
+			intSlice = append(intSlice, id)
+		}
+	}
+	return intSlice
 }
 
 // getEnv تابع کمکی برای خواندن متغیر محیطی با مقدار پیش‌فرض

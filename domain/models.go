@@ -17,6 +17,11 @@ const (
 	// Sponsorship States added
 	StateWaitSponsorLink  UserState = "WAIT_SPONSOR_LINK"  // Waiting for sponsor to send their channel/group link
 	StateWaitSponsorCount UserState = "WAIT_SPONSOR_COUNT" // Waiting for sponsor to send the requested member count
+
+	// Support & Withdrawal States
+	StateWaitSupportMsg     UserState = "WAIT_SUPPORT_MSG"     // در انتظار تایپ پیام برای پشتیبانی
+	StateWaitWithdrawAmount UserState = "WAIT_WITHDRAW_AMOUNT" // در انتظار مبلغ برداشت
+	StateWaitWithdrawWallet UserState = "WAIT_WITHDRAW_WALLET" // در انتظار آدرس ولت/آیدی مقصد
 )
 
 // Tenant (موجودیت اصلی برای معماری SaaS)
@@ -168,4 +173,57 @@ type Order struct {
 	CancelRequested  bool   // ثبت درخواست لغو سفارش با محاسبه ۱۰٪ کارمزد
 	HasRefill        bool   // وضعیت درخواست ریفیل (ریزش)
 	SpeedUpRequested bool   // درخواست سرعت‌دهی به سفارش
+}
+
+// [domain/models.go]
+// feat(models): add models for force join, withdrawal, support, and league
+
+// ForceJoin (کانال‌های جوین اجباری)
+type ForceJoin struct {
+	ID       uint   `gorm:"primaryKey"`
+	TenantID uint   `gorm:"index"`
+	ChatID   string // آیدی عددی یا یوزرنیم کانال
+	Link     string // لینک جوین پرایوت یا عمومی
+	IsActive bool   `gorm:"default:true"`
+}
+
+// Withdrawal (درخواست‌های برداشت استارز و گیفت)
+type Withdrawal struct {
+	ID            uint    `gorm:"primaryKey"`
+	TenantID      uint    `gorm:"index"`
+	UserID        uint    `gorm:"index"`
+	Amount        float64 // مقدار درخواستی
+	Currency      string  // نوع ارز: STARS یا GIFT
+	WalletAddress string  // آدرس کیف پول یا آیدی مقصد برای دریافت
+	Status        string  `gorm:"default:'PENDING'"` // وضعیت: PENDING, APPROVED, REJECTED
+	CreatedAt     time.Time
+}
+
+// SupportTicket (تیکت‌های پشتیبانی)
+type SupportTicket struct {
+	ID        uint   `gorm:"primaryKey"`
+	TenantID  uint   `gorm:"index"`
+	UserID    uint   `gorm:"index"`
+	Status    string `gorm:"default:'OPEN'"` // وضعیت: OPEN, ANSWERED, CLOSED
+	CreatedAt time.Time
+}
+
+// SupportMessage (پیام‌های درون هر تیکت پشتیبانی)
+type SupportMessage struct {
+	ID        uint   `gorm:"primaryKey"`
+	TicketID  uint   `gorm:"index"`
+	SenderID  uint   // آیدی تلگرام فرستنده (کاربر یا ادمین)
+	IsAdmin   bool   // مشخص میکند آیا این پاسخ ادمین است یا پیام کاربر
+	Text      string // متن پیام
+	CreatedAt time.Time
+}
+
+// League (تنظیمات دوره‌های رفرال لیگ)
+type League struct {
+	ID        uint   `gorm:"primaryKey"`
+	TenantID  uint   `gorm:"index"`
+	Title     string // عنوان لیگ (مثلا لیگ پاییزه)
+	StartDate time.Time
+	EndDate   time.Time
+	IsActive  bool `gorm:"default:true"`
 }
