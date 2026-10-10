@@ -103,6 +103,8 @@ func (h *BotHandler) HandleMessage(tenant *domain.Tenant, chatID int64, text str
 
 	supportBtnText := getText("btn_support", "ارتباط با پشتیبانی")
 
+	btnDoTasks := getText("btn_do_tasks", "📝 انجام وظایف (کسب درآمد)")
+
 	// پیدا کردن کاربر از دیتابیس برای عملیاتی که نیاز به اطلاعات کاربر دارند
 	// پیدا کردن کاربر از دیتابیس
 	currentUser, err := h.UserRepo.GetUserByTelegramID(tenant.ID, chatID)
@@ -132,7 +134,19 @@ func (h *BotHandler) HandleMessage(tenant *domain.Tenant, chatID int64, text str
 			}
 
 			// آپدیت لینک و تغییر وضعیت به گرفتن تعداد
-			draftOrder.TargetLink = text
+			// استفاده از فایل Utils برای بررسی و استانداردسازی لینک
+			resolvedLink, err := ResolveChatID(text)
+			if err != nil {
+				if err.Error() == "PRIVATE_LINK" {
+					_ = h.SafeBot.SendMessage(chatID, "❌ ربات نمی‌تواند عضویت در لینک‌های خصوصی (پرایوت) را بررسی کند.\n\nلطفاً برای کانال‌های خصوصی، فقط **آیدی عددی** کانال (شروع با 100-) را ارسال کنید.")
+				} else {
+					_ = h.SafeBot.SendMessage(chatID, "❌ لینک یا آیدی نامعتبر است. لطفاً یک لینک عمومی (t.me/id) یا آیدی (id@) یا آیدی عددی معتبر بفرستید.")
+				}
+				return
+			}
+
+			// آپدیت لینک با فرمت استاندارد شده
+			draftOrder.TargetLink = resolvedLink
 			_ = h.OrderRepo.UpdateOrder(draftOrder)
 			_ = h.UserRepo.UpdateUserState(tenant.ID, currentUser.ID, domain.StateWaitSponsorCount)
 
@@ -338,6 +352,40 @@ func (h *BotHandler) HandleMessage(tenant *domain.Tenant, chatID int64, text str
 		taskMenu, _ := h.KeyboardBuilder.BuildTasksSubMenu(tenant.ID, lang)
 
 		msg := tgbotapi.NewMessage(chatID, msgText)
+		msg.ReplyMarkup = taskMenu
+		_, _ = h.SafeBot.Bot.Send(msg)
+
+	// [delivery/telegram/handlers.go]
+	//feat(handler): serve next available active task to user
+	case btnDoTasks:
+		// واکشی تمام تسک‌های فعال کارفرما
+		tasks, err := h.TaskRepo.GetActiveTasks(tenant.ID)
+		if err != nil || len(tasks) == 0 {
+			_ = h.SafeBot.SendMessage(chatID, "🎉 در حال حاضر تسک جدیدی برای انجام وجود ندارد. لطفاً بعداً سر بزنید.")
+			return
+		}
+
+		// پیدا کردن اولین تسکی که کاربر هنوز انجام نداده است
+		var availableTask *domain.Task
+		for _, t := range tasks {
+			if !h.TaskRepo.HasUserCompletedTask(tenant.ID, currentUser.ID, t.ID) {
+				// به دلیل ساختار متغیر حلقه در نسخه‌های گو، باید یک کپی از آن بگیریم
+				taskCopy := t
+				availableTask = &taskCopy
+				break
+			}
+		}
+
+		if availableTask == nil {
+			_ = h.SafeBot.SendMessage(chatID, "🎉 شما تمام تسک‌های موجود را انجام داده‌اید! لطفاً بعداً سر بزنید.")
+			return
+		}
+
+		msgText := fmt.Sprintf("📝 *تسک جدید*\n\n📌 عنوان: %s\n🎁 پاداش: %.0f %s\n\n👇 برای دریافت پاداش، ابتدا از طریق دکمه زیر در کانال عضو شوید و سپس روی بررسی کلیک کنید:", availableTask.Title, availableTask.RewardAmount, availableTask.RewardType)
+		taskMenu := h.KeyboardBuilder.BuildTaskActionMenu(availableTask.ID, availableTask.TargetLink)
+
+		msg := tgbotapi.NewMessage(chatID, msgText)
+		msg.ParseMode = "Markdown"
 		msg.ReplyMarkup = taskMenu
 		_, _ = h.SafeBot.Bot.Send(msg)
 

@@ -260,6 +260,101 @@ func (h *PollingHandler) HandleCallback(tenant *domain.Tenant, update tgbotapi.U
 	// [delivery/telegram/callback_handler.go]
 	// feat(callback): route admin panel button clicks
 
+	// [delivery/telegram/callback_handler.go]
+	// feat(callback): verify channel membership and reward user for tasks
+
+	// کاربر روی بررسی عضویت تسک کلیک کرده است
+	if strings.HasPrefix(data, "verify_task_") {
+		taskIDStr := strings.TrimPrefix(data, "verify_task_")
+		taskID, _ := strconv.Atoi(taskIDStr)
+
+		user, _ := h.UserRepo.GetUserByTelegramID(tenant.ID, chatID)
+		if user == nil {
+			h.SafeBot.SafeAnswerCallback(callback.ID, "کاربر یافت نشد.", true)
+			return
+		}
+
+		task, err := h.TaskRepo.GetTaskByID(tenant.ID, uint(taskID))
+		if err != nil || task.Status != "ACTIVE" || task.Capacity <= 0 {
+			h.SafeBot.SafeAnswerCallback(callback.ID, "❌ این تسک منقضی شده یا ظرفیت آن به پایان رسیده است.", true)
+			h.SafeBot.SafeDeleteMessage(chatID, messageID)
+			return
+		}
+
+		// جلوگیری مضاعف از پاداش تکراری
+		if h.TaskRepo.HasUserCompletedTask(tenant.ID, user.ID, task.ID) {
+			h.SafeBot.SafeAnswerCallback(callback.ID, "✅ شما قبلاً پاداش این تسک را دریافت کرده‌اید.", true)
+			h.SafeBot.SafeDeleteMessage(chatID, messageID)
+			return
+		}
+
+		// تبدیل لینک ذخیره شده به فرمت مناسب API
+		targetChatID, err := ResolveChatID(task.TargetLink)
+		if err != nil {
+			h.SafeBot.SafeAnswerCallback(callback.ID, "❌ ساختار لینک این تسک نامعتبر است.", true)
+			return
+		}
+
+		// تشخیص اینکه آیدی عددی است یا یوزرنیم
+		var chatConfig tgbotapi.ChatConfigWithUser
+		if strings.HasPrefix(targetChatID, "-100") {
+			numericID, _ := strconv.ParseInt(targetChatID, 10, 64)
+			chatConfig = tgbotapi.ChatConfigWithUser{
+				ChatID: numericID,
+				UserID: chatID,
+			}
+		} else {
+			chatConfig = tgbotapi.ChatConfigWithUser{
+				SuperGroupUsername: targetChatID,
+				UserID:             chatID,
+			}
+		}
+
+		member, err := h.SafeBot.Bot.GetChatMember(tgbotapi.GetChatMemberConfig{
+			ChatConfigWithUser: chatConfig,
+		})
+
+		if err != nil {
+			h.SafeBot.SafeAnswerCallback(callback.ID, "❌ خطا در بررسی عضویت. ربات باید در کانال هدف ادمین باشد.", true)
+			return
+		}
+
+		if member.Status == "left" || member.Status == "kicked" {
+			h.SafeBot.SafeAnswerCallback(callback.ID, "⚠️ شما هنوز در کانال عضو نشده‌اید!", true)
+			return
+		}
+
+		// کاربر عضو شده است -> ثبت تسک و واریز پاداش
+		submission := &domain.TaskSubmission{
+			TenantID: tenant.ID,
+			UserID:   user.ID,
+			TaskID:   task.ID,
+			Status:   "approved",
+		}
+		_ = h.TaskRepo.SubmitTask(submission)
+
+		// کسر از ظرفیت تسکِ اسپانسر
+		_ = h.TaskRepo.DecreaseCapacity(tenant.ID, task.ID)
+
+		// واریز پاداش
+		if task.RewardType == "toman" {
+			user.TomanBalance += task.RewardAmount
+		} else {
+			user.PointBalance += task.RewardAmount
+		}
+		_ = h.UserRepo.UpdateBalances(tenant.ID, user.ID, user.TomanBalance, user.PointBalance, user.StarsBalance)
+
+		h.SafeBot.SafeAnswerCallback(callback.ID, "✅ عضویت شما تایید شد و پاداش دریافت کردید!", true)
+
+		successMsg := fmt.Sprintf("🎉 پاداش انجام تسک (%.0f %s) با موفقیت به موجودی شما افزوده شد.", task.RewardAmount, task.RewardType)
+		h.SafeBot.SafeEditText(chatID, messageID, successMsg, nil)
+
+		if h.Logger != nil {
+			h.Logger.Info(fmt.Sprintf("User %d completed task %d successfully", user.ID, task.ID))
+		}
+		return
+	}
+
 	// --- مسیریابی دکمه‌های پنل مدیریت ---
 	if strings.HasPrefix(data, "admin_") {
 		// بررسی امنیتی: آیا کسی که کلیک کرده واقعا ادمین است؟

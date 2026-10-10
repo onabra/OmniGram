@@ -3,6 +3,7 @@ package telegram
 import (
 	"OmniGram/repository"
 	"fmt"
+	"strings"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
@@ -259,6 +260,31 @@ func (kb *KeyboardBuilder) BuildOrderTicketMenu(orderID uint) tgbotapi.InlineKey
 	return tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("🎫 ثبت تیکت پشتیبانی", "new_ticket_"+idStr),
+		),
+	)
+}
+
+// BuildTaskActionMenu دکمه‌های شیشه‌ای برای انجام وظیفه (عضویت و بررسی)
+func (kb *KeyboardBuilder) BuildTaskActionMenu(taskID uint, targetLink string) tgbotapi.InlineKeyboardMarkup {
+	idStr := fmt.Sprintf("%d", taskID)
+
+	// تبدیل یوزرنیم به لینک برای دکمه شیشه‌ای
+	var btnURL string
+	if strings.HasPrefix(targetLink, "@") {
+		btnURL = "https://t.me/" + strings.TrimPrefix(targetLink, "@")
+	} else if strings.HasPrefix(targetLink, "-100") {
+		// برای آیدی عددی پرایوت، لینک در دسترس نیست اما فرمت پر می‌شود که API خطا ندهد
+		btnURL = "https://t.me"
+	} else {
+		btnURL = targetLink
+	}
+
+	return tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonURL("🔗 عضویت در کانال", btnURL),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("✅ بررسی عضویت و دریافت پاداش", "verify_task_"+idStr),
 		),
 	)
 }

@@ -31,3 +31,28 @@ func (r *TaskRepository) DecreaseCapacity(tenantID uint, taskID uint) error {
 		Where("id = ? AND tenant_id = ? AND capacity > 0", taskID, tenantID).
 		UpdateColumn("capacity", gorm.Expr("capacity - 1")).Error
 }
+
+// [repository/task_repo.go]
+// feat(repository): add methods for user task validation and submission
+
+// GetTaskByID واکشی اطلاعات یک تسک خاص
+func (r *TaskRepository) GetTaskByID(tenantID uint, taskID uint) (*domain.Task, error) {
+	var task domain.Task
+	err := r.DB.Where("tenant_id = ? AND id = ?", tenantID, taskID).First(&task).Error
+	if err != nil {
+		return nil, err
+	}
+	return &task, nil
+}
+
+// HasUserCompletedTask بررسی اینکه آیا کاربر قبلاً این تسک را انجام داده یا خیر (ضد پاداش تکراری)
+func (r *TaskRepository) HasUserCompletedTask(tenantID uint, userID uint, taskID uint) bool {
+	var count int64
+	r.DB.Model(&domain.TaskSubmission{}).Where("tenant_id = ? AND user_id = ? AND task_id = ?", tenantID, userID, taskID).Count(&count)
+	return count > 0
+}
+
+// SubmitTask ثبت موفقیت‌آمیز انجام تسک توسط کاربر
+func (r *TaskRepository) SubmitTask(submission *domain.TaskSubmission) error {
+	return r.DB.Create(submission).Error
+}
