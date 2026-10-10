@@ -60,6 +60,8 @@ func main() {
 
 	taskRepo := &repository.TaskRepository{DB: db}
 
+	ticketRepo := &repository.TicketRepository{DB: db}
+
 	// ۴. مقداردهی ماژول کیبوردساز داینامیک
 	keyboardBuilder := &telegram.KeyboardBuilder{
 		TranslationRepo: translationRepo,
@@ -75,16 +77,19 @@ func main() {
 
 		UserRepo: userRepo,
 		RefRepo:  refRepo,
+		TxRepo:   txRepo,
 
-		TxRepo:        txRepo,
 		WalletService: walletService,
 
-		Logger: appLogger,
-
+		Logger:      appLogger,
 		OrderRepo:   orderRepo,
 		ServiceRepo: serviceRepo,
+		TaskRepo:    taskRepo,
 
-		TaskRepo: taskRepo,
+		SuperAdminIDs: cfg.SuperAdminIDs,
+		AdminIDs:      cfg.AdminIDs,
+
+		TicketRepo: ticketRepo,
 	}
 
 	// ۶. روشن کردن ربات و اجرای حلقه دریافت پیام‌ها

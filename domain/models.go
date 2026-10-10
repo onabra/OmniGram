@@ -19,9 +19,10 @@ const (
 	StateWaitSponsorCount UserState = "WAIT_SPONSOR_COUNT" // Waiting for sponsor to send the requested member count
 
 	// Support & Withdrawal States
-	StateWaitSupportMsg     UserState = "WAIT_SUPPORT_MSG"     // در انتظار تایپ پیام برای پشتیبانی
-	StateWaitWithdrawAmount UserState = "WAIT_WITHDRAW_AMOUNT" // در انتظار مبلغ برداشت
-	StateWaitWithdrawWallet UserState = "WAIT_WITHDRAW_WALLET" // در انتظار آدرس ولت/آیدی مقصد
+	StateWaitSupportMsg       UserState = "WAIT_SUPPORT_MSG"        // در انتظار تایپ پیام برای پشتیبانی
+	StateWaitWithdrawAmount   UserState = "WAIT_WITHDRAW_AMOUNT"    // در انتظار مبلغ برداشت
+	StateWaitWithdrawWallet   UserState = "WAIT_WITHDRAW_WALLET"    // در انتظار آدرس ولت/آیدی مقصد
+	StateWaitSupportOrderCode UserState = "WAIT_SUPPORT_ORDER_CODE" // در انتظار کد رهگیری سفارش
 )
 
 // Tenant (موجودیت اصلی برای معماری SaaS)
@@ -204,6 +205,7 @@ type SupportTicket struct {
 	ID        uint   `gorm:"primaryKey"`
 	TenantID  uint   `gorm:"index"`
 	UserID    uint   `gorm:"index"`
+	OrderID   uint   `gorm:"index"`          // ارتباط این تیکت با یک سفارش خاص
 	Status    string `gorm:"default:'OPEN'"` // وضعیت: OPEN, ANSWERED, CLOSED
 	CreatedAt time.Time
 }
@@ -212,7 +214,7 @@ type SupportTicket struct {
 type SupportMessage struct {
 	ID        uint   `gorm:"primaryKey"`
 	TicketID  uint   `gorm:"index"`
-	SenderID  uint   // آیدی تلگرام فرستنده (کاربر یا ادمین)
+	SenderID  int64  // آیدی تلگرام فرستنده (کاربر یا ادمین)
 	IsAdmin   bool   // مشخص میکند آیا این پاسخ ادمین است یا پیام کاربر
 	Text      string // متن پیام
 	CreatedAt time.Time

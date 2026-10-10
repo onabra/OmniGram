@@ -236,6 +236,66 @@ func (h *PollingHandler) HandleCallback(tenant *domain.Tenant, update tgbotapi.U
 		return
 	}
 
+	// کاربر روی دکمه ثبت تیکتِ یک سفارش کلیک کرده است
+	if strings.HasPrefix(data, "new_ticket_") {
+		orderIDStr := strings.TrimPrefix(data, "new_ticket_")
+		orderID, _ := strconv.Atoi(orderIDStr)
+
+		user, _ := h.UserRepo.GetUserByTelegramID(tenant.ID, chatID)
+
+		// ساخت تیکت و متصل کردن به سفارش
+		ticket := &domain.SupportTicket{
+			TenantID: tenant.ID,
+			UserID:   user.ID,
+			OrderID:  uint(orderID),
+			Status:   "OPEN",
+		}
+		_ = h.TicketRepo.CreateTicket(ticket)
+		_ = h.UserRepo.UpdateUserState(tenant.ID, user.ID, domain.StateWaitSupportMsg)
+
+		h.SafeBot.SafeEditText(chatID, messageID, "✅ سفارش یافت شد.\n\n📝 لطفاً مشکل یا گزارش خود را در مورد این سفارش کامل بنویسید:", nil)
+		return
+	}
+
+	// [delivery/telegram/callback_handler.go]
+	// feat(callback): route admin panel button clicks
+
+	// --- مسیریابی دکمه‌های پنل مدیریت ---
+	if strings.HasPrefix(data, "admin_") {
+		// بررسی امنیتی: آیا کسی که کلیک کرده واقعا ادمین است؟
+		botHandler := &BotHandler{
+			SuperAdminIDs: h.SuperAdminIDs,
+			AdminIDs:      h.AdminIDs,
+		}
+		isSuper := botHandler.IsSuperAdmin(chatID)
+		isAdmin := botHandler.IsAdmin(chatID)
+
+		if !isSuper && !isAdmin {
+			h.SafeBot.SafeAnswerCallback(callback.ID, "دسترسی غیرمجاز", true)
+			return
+		}
+
+		// بررسی بخش درخواستی
+		action := strings.TrimPrefix(data, "admin_")
+		switch action {
+		case "orders":
+			// TODO: فراخوانی لیست سفارشات
+			h.SafeBot.SafeAnswerCallback(callback.ID, "در حال بارگذاری سفارشات...", false)
+		case "tickets":
+			// TODO: فراخوانی تیکت‌های پشتیبانی
+			h.SafeBot.SafeAnswerCallback(callback.ID, "در حال بارگذاری تیکت‌ها...", false)
+		case "stats":
+			if isSuper {
+				// TODO: واکشی آمار و ویرایش پیام
+				h.SafeBot.SafeAnswerCallback(callback.ID, "آمار به زودی لود می‌شود...", false)
+			}
+		// ... سایر کیس‌ها به مرور تکمیل می‌شوند ...
+		default:
+			h.SafeBot.SafeAnswerCallback(callback.ID, "این بخش به زودی فعال می‌شود.", false)
+		}
+		return
+	}
+
 }
 
 // buildMainCategoryMenu نمایش دسته‌های اصلی (شبیه‌ساز دیتابیس)

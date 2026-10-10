@@ -30,6 +30,11 @@ type PollingHandler struct {
 	ServiceRepo *repository.ServiceRepository
 
 	TaskRepo *repository.TaskRepository
+
+	TicketRepo *repository.TicketRepository
+
+	SuperAdminIDs []int64
+	AdminIDs      []int64
 }
 
 func (h *PollingHandler) StartPolling() {
@@ -109,11 +114,14 @@ func (h *PollingHandler) processUpdateWithRecovery(update tgbotapi.Update) {
 			ReferralRepo:    h.RefRepo,
 			TxRepo:          h.TxRepo,
 			WalletService:   h.WalletService,
+			OrderRepo:       h.OrderRepo,
+			ServiceRepo:     h.ServiceRepo,
+			TaskRepo:        h.TaskRepo,
 
-			OrderRepo:   h.OrderRepo,
-			ServiceRepo: h.ServiceRepo,
+			SuperAdminIDs: h.SuperAdminIDs,
+			AdminIDs:      h.AdminIDs,
 
-			TaskRepo: h.TaskRepo,
+			TicketRepo: h.TicketRepo,
 		}
 
 		if update.Message.Command() == "start" {

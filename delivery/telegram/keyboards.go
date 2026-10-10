@@ -202,3 +202,63 @@ func (kb *KeyboardBuilder) BuildTasksSubMenu(tenantID uint, lang string) (tgbota
 	keyboard.ResizeKeyboard = true
 	return keyboard, nil
 }
+
+// [delivery/telegram/keyboards.go]
+// feat(keyboard): build structured inline keyboards for admin panel
+
+// BuildAdminInlineMenu ساخت منوی شیشه‌ای اصلی ادمین بر اساس سطح دسترسی
+func (kb *KeyboardBuilder) BuildAdminInlineMenu(isSuperAdmin bool) tgbotapi.InlineKeyboardMarkup {
+	var rows [][]tgbotapi.InlineKeyboardButton
+
+	// بخش اول: مدیریت‌های مشترک (سفارشات، پشتیبانی و مالی)
+	rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+		tgbotapi.NewInlineKeyboardButtonData("🛒 سفارش‌ها", "admin_orders"),
+		tgbotapi.NewInlineKeyboardButtonData("🎫 پشتیبانی", "admin_tickets"),
+	))
+	rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+		tgbotapi.NewInlineKeyboardButtonData("💳 بررسی برداشت‌ها", "admin_withdraws"),
+		tgbotapi.NewInlineKeyboardButtonData("💼 تراکنش‌ها", "admin_transactions"),
+	))
+
+	// بخش دوم: مدیریت سیستم (تسک، اسپانسر، رفرال)
+	rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+		tgbotapi.NewInlineKeyboardButtonData("📝 تسک‌ها", "admin_tasks"),
+		tgbotapi.NewInlineKeyboardButtonData("📢 اسپانسرها", "admin_sponsors"),
+	))
+	rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+		tgbotapi.NewInlineKeyboardButtonData("👥 رفرال‌ها", "admin_referrals"),
+		tgbotapi.NewInlineKeyboardButtonData("🎁 گیفت‌ها", "admin_gifts"),
+	))
+
+	// بخش سوم: امکانات ویژه (فقط سوپر ادمین)
+	if isSuperAdmin {
+		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("🔧 خدمات", "admin_services"),
+			tgbotapi.NewInlineKeyboardButtonData("💰 قیمت‌ها", "admin_prices"),
+		))
+		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("🛑 جوین اجباری", "admin_forcejoin"),
+			tgbotapi.NewInlineKeyboardButtonData("🏆 لیگ", "admin_league"),
+		))
+		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("👤 کاربران", "admin_users"),
+			tgbotapi.NewInlineKeyboardButtonData("📊 آمار ربات", "admin_stats"),
+		))
+		// مدیریت محتوای داینامیک
+		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("🔤 متون و دکمه‌ها", "admin_texts"),
+		))
+	}
+
+	return tgbotapi.NewInlineKeyboardMarkup(rows...)
+}
+
+// BuildOrderTicketMenu دکمه شیشه‌ای ثبت تیکت برای یک سفارش خاص
+func (kb *KeyboardBuilder) BuildOrderTicketMenu(orderID uint) tgbotapi.InlineKeyboardMarkup {
+	idStr := fmt.Sprintf("%d", orderID)
+	return tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("🎫 ثبت تیکت پشتیبانی", "new_ticket_"+idStr),
+		),
+	)
+}

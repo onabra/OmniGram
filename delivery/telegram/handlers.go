@@ -29,6 +29,11 @@ type BotHandler struct {
 	ServiceRepo *repository.ServiceRepository
 
 	TaskRepo *repository.TaskRepository
+
+	TicketRepo *repository.TicketRepository
+
+	SuperAdminIDs []int64
+	AdminIDs      []int64
 }
 
 // HandleStart مدیریت دستور /start
@@ -95,6 +100,8 @@ func (h *BotHandler) HandleMessage(tenant *domain.Tenant, chatID int64, text str
 
 	taskMenuBtnText := getText("btn_task", "وظایف")
 	sponsorBtnText := getText("btn_sponsor", "📢 اسپانسر شدن (جذب ممبر)")
+
+	supportBtnText := getText("btn_support", "ارتباط با پشتیبانی")
 
 	// پیدا کردن کاربر از دیتابیس برای عملیاتی که نیاز به اطلاعات کاربر دارند
 	// پیدا کردن کاربر از دیتابیس
@@ -178,7 +185,76 @@ func (h *BotHandler) HandleMessage(tenant *domain.Tenant, chatID int64, text str
 		}
 	}
 
+	// --- سیستم پشتیبانی ---
+	if currentUser.State == domain.StateWaitSupportOrderCode {
+		if text == backMainBtnText {
+			_ = h.UserRepo.UpdateUserState(tenant.ID, currentUser.ID, domain.StateNormal)
+		} else {
+			// جستجوی سفارش با کد رهگیری
+			order, err := h.OrderRepo.GetOrder(tenant.ID, text)
+			if err != nil || order.UserID != currentUser.ID {
+				_ = h.SafeBot.SendMessage(chatID, "❌ سفارش یافت نشد یا متعلق به شما نیست. لطفاً کد رهگیری صحیح را بفرستید:")
+				return
+			}
+
+			// ساخت تیکت
+			ticket := &domain.SupportTicket{
+				TenantID: tenant.ID,
+				UserID:   currentUser.ID,
+				OrderID:  order.ID,
+				Status:   "OPEN",
+			}
+			_ = h.TicketRepo.CreateTicket(ticket)
+			_ = h.UserRepo.UpdateUserState(tenant.ID, currentUser.ID, domain.StateWaitSupportMsg)
+
+			_ = h.SafeBot.SendMessage(chatID, "✅ سفارش تأیید شد.\n\n📝 لطفاً مشکل خود را در مورد این سفارش کامل بنویسید:")
+			return
+		}
+	}
+
+	if currentUser.State == domain.StateWaitSupportMsg {
+		if text == backMainBtnText {
+			_ = h.UserRepo.UpdateUserState(tenant.ID, currentUser.ID, domain.StateNormal)
+		} else {
+			ticket, err := h.TicketRepo.GetOpenTicket(tenant.ID, currentUser.ID)
+			if err != nil {
+				_ = h.SafeBot.SendMessage(chatID, "تیکت بازی یافت نشد. لطفاً مجدداً اقدام کنید.")
+				_ = h.UserRepo.UpdateUserState(tenant.ID, currentUser.ID, domain.StateNormal)
+				return
+			}
+
+			// ذخیره پیام
+			msg := &domain.SupportMessage{
+				TicketID: ticket.ID,
+				SenderID: chatID,
+				IsAdmin:  false,
+				Text:     text,
+			}
+			_ = h.TicketRepo.SaveMessage(msg)
+
+			// واکشی اطلاعات سفارش برای گزارش
+			order, _ := h.OrderRepo.GetOrderByID(tenant.ID, ticket.OrderID)
+
+			// فرمت‌بندی و ارسال گزارش به کانال/ادمین
+			reportText := fmt.Sprintf("🎫 *تیکت جدید (سفارش)*\n\n👤 کاربر: [%s](tg://user?id=%d)\n🛒 شماره سفارش: `%s`\n🔢 تعداد: %d\n💰 مبلغ: %.0f\n\n📝 متن مشکل:\n%s", currentUser.FirstName, currentUser.TelegramID, order.TrackingCode, order.Quantity, order.TotalAmount, text)
+
+			targetChannel := tenant.ReportChannelID
+			if targetChannel != "" {
+				chID, _ := strconv.ParseInt(targetChannel, 10, 64)
+				_ = h.SafeBot.SendMessage(chID, reportText)
+			} else {
+				// در صورت ست نبودن کانال گزارش، به لاگر بفرست
+				h.SafeBot.SendLogToChannel(reportText)
+			}
+
+			_ = h.SafeBot.SendMessage(chatID, "✅ پیام شما با موفقیت ثبت و برای تیم پشتیبانی ارسال شد.")
+			_ = h.UserRepo.UpdateUserState(tenant.ID, currentUser.ID, domain.StateNormal)
+			return
+		}
+	}
+
 	switch text {
+
 	case devBtnText:
 		devDesc := getText("msg_dev_description", "متن معرفی توسعه دهنده")
 		developerURL := getText("url_developer", "https://t.me/default_admin")
@@ -274,6 +350,17 @@ func (h *BotHandler) HandleMessage(tenant *domain.Tenant, chatID int64, text str
 		msg.ReplyMarkup = sponsorMenu
 		_, _ = h.SafeBot.Bot.Send(msg)
 
+	case supportBtnText:
+		_ = h.UserRepo.UpdateUserState(tenant.ID, currentUser.ID, domain.StateWaitSupportOrderCode)
+		msgText := "پشتیبانی ربات 🎧\n\nجهت ثبت تیکت، لطفاً **کد رهگیری** سفارش خود را ارسال کنید:"
+
+		// نمایش دکمه بازگشت
+		accMenu, _ := h.KeyboardBuilder.BuildUserAccountMenu(tenant.ID, lang)
+		msg := tgbotapi.NewMessage(chatID, msgText)
+		msg.ParseMode = "Markdown"
+		msg.ReplyMarkup = accMenu // موقتاً از کیبورد حاوی بازگشت استفاده می‌کنیم
+		_, _ = h.SafeBot.Bot.Send(msg)
+
 	default:
 		if strings.HasPrefix(text, "انتقال") && currentUser != nil && h.WalletService != nil {
 			parts := strings.Split(text, " ")
@@ -307,6 +394,26 @@ func (h *BotHandler) HandleMessage(tenant *domain.Tenant, chatID int64, text str
 			return
 		}
 	}
+}
+
+// IsSuperAdmin بررسی اینکه آیا کاربر سوپرادمین است
+func (h *BotHandler) IsSuperAdmin(telegramID int64) bool {
+	for _, id := range h.SuperAdminIDs {
+		if id == telegramID {
+			return true
+		}
+	}
+	return false
+}
+
+// IsAdmin بررسی اینکه آیا کاربر مدیر عادی است
+func (h *BotHandler) IsAdmin(telegramID int64) bool {
+	for _, id := range h.AdminIDs {
+		if id == telegramID {
+			return true
+		}
+	}
+	return false
 }
 
 //func (h *BotHandler) HandleMessage(tenant *domain.Tenant, chatID int64, text string, lang string) {
