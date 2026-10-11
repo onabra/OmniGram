@@ -34,6 +34,8 @@ type PollingHandler struct {
 
 	ReceiptRepo *repository.ReceiptRepository
 
+	CategoryRepo *repository.CategoryRepository
+
 	SuperAdminIDs []int64
 	AdminIDs      []int64
 }
@@ -153,10 +155,11 @@ func (h *PollingHandler) processUpdateWithRecovery(update tgbotapi.Update) {
 			SuperAdminIDs: h.SuperAdminIDs,
 			AdminIDs:      h.AdminIDs,
 
-			TicketRepo: h.TicketRepo,
-			GameRepo:   h.GameRepo,
-
+			TicketRepo:  h.TicketRepo,
+			GameRepo:    h.GameRepo,
 			ReceiptRepo: h.ReceiptRepo,
+
+			CategoryRepo: h.CategoryRepo,
 		}
 
 		if update.Message.Command() == "start" {

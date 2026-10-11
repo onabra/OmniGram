@@ -25,6 +25,10 @@ const (
 	StateWaitSupportOrderCode UserState = "WAIT_SUPPORT_ORDER_CODE" // در انتظار کد رهگیری سفارش
 	StateWaitPaymentReceipt   UserState = "WAIT_PAYMENT_RECEIPT"    // در انتظار ارسال عکس فیش واریزی
 
+	// Shop States
+	StateWaitServiceLink  UserState = "WAIT_SERVICE_LINK"  // انتظار لینک برای انجام سفارش فروشگاه
+	StateWaitServiceCount UserState = "WAIT_SERVICE_COUNT" // انتظار تعداد سفارش فروشگاه
+
 )
 
 // Tenant (موجودیت اصلی برای معماری SaaS)

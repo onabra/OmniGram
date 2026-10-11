@@ -19,22 +19,90 @@ func (h *PollingHandler) HandleCallback(tenant *domain.Tenant, update tgbotapi.U
 	// غیرفعال کردن آیکون ساعت شنی روی دکمه بعد از کلیک
 	h.SafeBot.SafeAnswerCallback(callback.ID, "", false)
 
-	// کاربر روی دسته اصلی (مثل خدمات) کلیک کرده
-	if data == "menu_services" {
-		markup, text := h.buildMainCategoryMenu()
-		h.SafeBot.SafeEditText(chatID, messageID, text, markup)
+	// --- سیستم فروشگاه داینامیک ---
+	if data == "shop_main" {
+		botHandler := &BotHandler{CategoryRepo: h.CategoryRepo}
+		categories, _ := botHandler.CategoryRepo.GetMainCategories(tenant.ID)
+		if len(categories) == 0 {
+			h.SafeBot.SafeAnswerCallback(callback.ID, "درحال حاضر دسته‌بندی فعالی وجود ندارد.", true)
+			return
+		}
+		markup := h.KeyboardBuilder.BuildDynamicCategoryMenu(categories, false)
+		h.SafeBot.SafeEditText(chatID, messageID, "🛍 *فروشگاه خدمات مجازی*\n\nلطفاً دسته‌بندی مورد نظر خود را انتخاب کنید:", &markup)
 		return
 	}
 
-	// کاربر روی یکی از دسته‌ها (مثل ممبر یا ویو) کلیک کرده
-	if strings.HasPrefix(data, "cat_") {
-		catIDStr := strings.TrimPrefix(data, "cat_")
+	if strings.HasPrefix(data, "shop_cat_") {
+		catIDStr := strings.TrimPrefix(data, "shop_cat_")
 		catID, _ := strconv.Atoi(catIDStr)
 
-		markup, text := h.buildSubCategoryMenu(uint(catID))
-		h.SafeBot.SafeEditText(chatID, messageID, text, markup)
+		botHandler := &BotHandler{CategoryRepo: h.CategoryRepo, ServiceRepo: h.ServiceRepo}
+
+		// بررسی وجود زیردسته
+		subCategories, _ := botHandler.CategoryRepo.GetSubCategories(tenant.ID, uint(catID))
+		if len(subCategories) > 0 {
+			markup := h.KeyboardBuilder.BuildDynamicCategoryMenu(subCategories, true)
+			h.SafeBot.SafeEditText(chatID, messageID, "📂 لطفاً زیرمجموعه مورد نظر را انتخاب کنید:", &markup)
+			return
+		}
+
+		// اگر زیردسته نداشت، مستقیما لیست سرویس‌های این دسته را بیاور
+		services, _ := botHandler.ServiceRepo.GetServicesByCategory(tenant.ID, uint(catID))
+		if len(services) == 0 {
+			h.SafeBot.SafeAnswerCallback(callback.ID, "سرویسی در این دسته یافت نشد.", true)
+			return
+		}
+		markup := h.KeyboardBuilder.BuildDynamicServiceMenu(services, uint(catID))
+		h.SafeBot.SafeEditText(chatID, messageID, "📦 لیست سرویس‌های فعال:\nلطفاً سرویس مورد نظر را جهت خرید انتخاب کنید:", &markup)
 		return
 	}
+
+	if strings.HasPrefix(data, "shop_srv_") {
+		srvIDStr := strings.TrimPrefix(data, "shop_srv_")
+		srvID, _ := strconv.Atoi(srvIDStr)
+
+		botHandler := &BotHandler{
+			ServiceRepo: h.ServiceRepo,
+			UserRepo:    h.UserRepo,
+			OrderRepo:   h.OrderRepo,
+		}
+		user, _ := botHandler.UserRepo.GetUserByTelegramID(tenant.ID, chatID)
+		service, _ := botHandler.ServiceRepo.GetServiceByID(tenant.ID, uint(srvID))
+
+		if user != nil && service != nil {
+			// سیستم هوشمند VIP: بررسی میزان خرید ماه گذشته و اعمال تخفیف
+			totalSpent, _ := botHandler.OrderRepo.GetUserTotalSpentLast30Days(tenant.ID, user.ID)
+			discountPercent := 0.0
+			if totalSpent > 500000 {
+				discountPercent = 5.0
+			} else if totalSpent > 200000 {
+				discountPercent = 3.0
+			} else if totalSpent > 100000 {
+				discountPercent = 1.0
+			}
+
+			finalPrice := service.PriceToman * (1.0 - (discountPercent / 100.0))
+
+			// ساخت پیش‌نویس سفارش خدمات برای کاربر
+			trackingCode := fmt.Sprintf("SRV_%d_%v", user.ID, callback.Message.MessageID)
+			draftOrder := &domain.Order{
+				TenantID:      tenant.ID,
+				UserID:        user.ID,
+				ServiceItemID: service.ID,
+				TrackingCode:  trackingCode,
+				Status:        "DRAFT",
+				TotalAmount:   finalPrice, // موقتاً قیمت واحد، در مرحله بعد در تعداد ضرب خواهد شد
+			}
+			_ = botHandler.OrderRepo.CreateOrder(draftOrder)
+
+			_ = botHandler.UserRepo.UpdateUserState(tenant.ID, user.ID, domain.StateWaitServiceLink)
+
+			msgText := fmt.Sprintf("✅ *سرویس انتخاب شد:*\n`%s`\n\n💰 قیمت پایه (واحد): %.0f تومان\n💎 درصد تخفیف VIP شما: %.0f%%\n\n🔗 لطفاً لینک هدف (لینک پست، کانال یا آیدی پروفایل) را ارسال کنید:", service.Title, service.PriceToman, discountPercent)
+			h.SafeBot.SafeEditText(chatID, messageID, msgText, nil)
+		}
+		return
+	}
+
 	// کاربر روی یکی از کیفیت‌های اسپانسر کلیک کرده
 	if strings.HasPrefix(data, "sponsor_quality_") {
 		qualityType := strings.TrimPrefix(data, "sponsor_quality_")
@@ -432,7 +500,7 @@ func (h *PollingHandler) HandleCallback(tenant *domain.Tenant, update tgbotapi.U
 		// بررسی بخش درخواستی
 		action := strings.TrimPrefix(data, "admin_")
 		switch action {
-		case action == "orders":
+		case strings.HasPrefix(action, "orders"):
 			// TODO: فراخوانی لیست سفارشات
 			h.SafeBot.SafeAnswerCallback(callback.ID, "در حال بارگذاری سفارشات...", false)
 
@@ -518,37 +586,37 @@ func (h *PollingHandler) HandleCallback(tenant *domain.Tenant, update tgbotapi.U
 
 }
 
-// buildMainCategoryMenu نمایش دسته‌های اصلی (شبیه‌ساز دیتابیس)
-func (h *PollingHandler) buildMainCategoryMenu() (*tgbotapi.InlineKeyboardMarkup, string) {
-	keyboard := tgbotapi.NewInlineKeyboardMarkup(
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("〔ممبر〕", "cat_1"),
-			tgbotapi.NewInlineKeyboardButtonData("〔ویو〕", "cat_2"),
-		),
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("〔ری‌اکشن〕", "cat_3"),
-			tgbotapi.NewInlineKeyboardButtonData("〔بوست〕", "cat_4"),
-		),
-	)
-	return &keyboard, "لطفاً بخش مورد نظر را انتخاب کنید:"
-}
-
-// buildSubCategoryMenu نمایش زیرمجموعه‌های یک دسته همراه با دکمه بازگشت
-func (h *PollingHandler) buildSubCategoryMenu(parentID uint) (*tgbotapi.InlineKeyboardMarkup, string) {
-	var keyboard tgbotapi.InlineKeyboardMarkup
-
-	if parentID == 1 { // فرض کنیم 1 آیدی ممبر است
-		keyboard = tgbotapi.NewInlineKeyboardMarkup(
-			tgbotapi.NewInlineKeyboardRow(tgbotapi.NewInlineKeyboardButtonData("‐ ممبر ایرانی", "item_1")),
-			tgbotapi.NewInlineKeyboardRow(tgbotapi.NewInlineKeyboardButtonData("‐ ممبر خارجی", "item_2")),
-			tgbotapi.NewInlineKeyboardRow(tgbotapi.NewInlineKeyboardButtonData("🔙 بازگشت به منوی قبل", "menu_services")),
-		)
-	} else {
-		// برای سایر دسته‌ها
-		keyboard = tgbotapi.NewInlineKeyboardMarkup(
-			tgbotapi.NewInlineKeyboardRow(tgbotapi.NewInlineKeyboardButtonData("🔙 بازگشت به منوی قبل", "menu_services")),
-		)
-	}
-
-	return &keyboard, "نوع سرویس را انتخاب کنید:"
-}
+//// buildMainCategoryMenu نمایش دسته‌های اصلی (شبیه‌ساز دیتابیس)
+//func (h *PollingHandler) buildMainCategoryMenu() (*tgbotapi.InlineKeyboardMarkup, string) {
+//	keyboard := tgbotapi.NewInlineKeyboardMarkup(
+//		tgbotapi.NewInlineKeyboardRow(
+//			tgbotapi.NewInlineKeyboardButtonData("〔ممبر〕", "cat_1"),
+//			tgbotapi.NewInlineKeyboardButtonData("〔ویو〕", "cat_2"),
+//		),
+//		tgbotapi.NewInlineKeyboardRow(
+//			tgbotapi.NewInlineKeyboardButtonData("〔ری‌اکشن〕", "cat_3"),
+//			tgbotapi.NewInlineKeyboardButtonData("〔بوست〕", "cat_4"),
+//		),
+//	)
+//	return &keyboard, "لطفاً بخش مورد نظر را انتخاب کنید:"
+//}
+//
+//// buildSubCategoryMenu نمایش زیرمجموعه‌های یک دسته همراه با دکمه بازگشت
+//func (h *PollingHandler) buildSubCategoryMenu(parentID uint) (*tgbotapi.InlineKeyboardMarkup, string) {
+//	var keyboard tgbotapi.InlineKeyboardMarkup
+//
+//	if parentID == 1 { // فرض کنیم 1 آیدی ممبر است
+//		keyboard = tgbotapi.NewInlineKeyboardMarkup(
+//			tgbotapi.NewInlineKeyboardRow(tgbotapi.NewInlineKeyboardButtonData("‐ ممبر ایرانی", "item_1")),
+//			tgbotapi.NewInlineKeyboardRow(tgbotapi.NewInlineKeyboardButtonData("‐ ممبر خارجی", "item_2")),
+//			tgbotapi.NewInlineKeyboardRow(tgbotapi.NewInlineKeyboardButtonData("🔙 بازگشت به منوی قبل", "menu_services")),
+//		)
+//	} else {
+//		// برای سایر دسته‌ها
+//		keyboard = tgbotapi.NewInlineKeyboardMarkup(
+//			tgbotapi.NewInlineKeyboardRow(tgbotapi.NewInlineKeyboardButtonData("🔙 بازگشت به منوی قبل", "menu_services")),
+//		)
+//	}
+//
+//	return &keyboard, "نوع سرویس را انتخاب کنید:"
+//}

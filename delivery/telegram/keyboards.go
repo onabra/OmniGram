@@ -1,6 +1,7 @@
 package telegram
 
 import (
+	"OmniGram/domain"
 	"OmniGram/repository"
 	"fmt"
 	"strings"
@@ -313,4 +314,48 @@ func (kb *KeyboardBuilder) BuildAdminReceiptMenu(receiptID uint) tgbotapi.Inline
 			tgbotapi.NewInlineKeyboardButtonData("❌ رد فیش", "admin_receipt_reject_"+idStr),
 		),
 	)
+}
+
+// BuildDynamicCategoryMenu ساخت منوی شیشه‌ای داینامیک برای دسته‌ها و زیردسته‌ها
+func (kb *KeyboardBuilder) BuildDynamicCategoryMenu(categories []domain.Category, isSub bool) tgbotapi.InlineKeyboardMarkup {
+	var rows [][]tgbotapi.InlineKeyboardButton
+	var currentRow []tgbotapi.InlineKeyboardButton
+
+	for i, cat := range categories {
+		btnText := "▪️ " + cat.NameKey // در دیتابیس به جای کلید، مستقیما نام فارسی را ثبت می‌کنیم یا بعدا هندل می‌شود
+		btnData := fmt.Sprintf("shop_cat_%d", cat.ID)
+
+		currentRow = append(currentRow, tgbotapi.NewInlineKeyboardButtonData(btnText, btnData))
+		if len(currentRow) == 2 || i == len(categories)-1 {
+			rows = append(rows, currentRow)
+			currentRow = nil
+		}
+	}
+
+	if isSub {
+		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("🔙 بازگشت به دسته‌ها", "shop_main"),
+		))
+	}
+
+	return tgbotapi.NewInlineKeyboardMarkup(rows...)
+}
+
+// BuildDynamicServiceMenu ساخت منوی شیشه‌ای سرویس‌های یک دسته
+func (kb *KeyboardBuilder) BuildDynamicServiceMenu(services []domain.ServiceItem, catID uint) tgbotapi.InlineKeyboardMarkup {
+	var rows [][]tgbotapi.InlineKeyboardButton
+
+	for _, srv := range services {
+		btnText := fmt.Sprintf("🏷 %s (%.0f تومان)", srv.Title, srv.PriceToman)
+		btnData := fmt.Sprintf("shop_srv_%d", srv.ID)
+		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData(btnText, btnData),
+		))
+	}
+
+	rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+		tgbotapi.NewInlineKeyboardButtonData("🔙 بازگشت", "shop_main"),
+	))
+
+	return tgbotapi.NewInlineKeyboardMarkup(rows...)
 }

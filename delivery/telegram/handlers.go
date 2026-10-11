@@ -31,6 +31,8 @@ type BotHandler struct {
 
 	ReceiptRepo *repository.ReceiptRepository
 
+	CategoryRepo *repository.CategoryRepository
+
 	SuperAdminIDs []int64
 	AdminIDs      []int64
 }
@@ -96,6 +98,8 @@ func (h *BotHandler) HandleMessage(tenant *domain.Tenant, chatID int64, text str
 
 	recentTxsBtnText := getText("btn_recent_txs", "تراکنشات اخیر")
 	transferBtnText := getText("btn_transfer", "انتقال")
+
+	btnShop := getText("btn_shop", "فروشگاه")
 
 	taskMenuBtnText := getText("btn_task", "وظایف")
 	sponsorBtnText := getText("btn_sponsor", "📢 اسپانسر شدن (جذب ممبر)")
@@ -267,6 +271,19 @@ func (h *BotHandler) HandleMessage(tenant *domain.Tenant, chatID int64, text str
 	}
 
 	switch text {
+
+	case btnShop:
+		categories, err := h.CategoryRepo.GetMainCategories(tenant.ID)
+		if err != nil || len(categories) == 0 {
+			_ = h.SafeBot.SendMessage(chatID, "🛍 فروشگاه در حال حاضر خالی است.")
+		} else {
+			msgText := "🛍 *به فروشگاه خدمات مجازی خوش آمدید!*\n\nلطفاً دسته‌بندی مورد نظر خود را انتخاب کنید:"
+			shopMenu := h.KeyboardBuilder.BuildDynamicCategoryMenu(categories, false)
+			msg := tgbotapi.NewMessage(chatID, msgText)
+			msg.ParseMode = "Markdown"
+			msg.ReplyMarkup = shopMenu
+			_, _ = h.SafeBot.Bot.Send(msg)
+		}
 
 	case devBtnText:
 		devDesc := getText("msg_dev_description", "متن معرفی توسعه دهنده")

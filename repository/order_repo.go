@@ -2,6 +2,7 @@ package repository
 
 import (
 	"OmniGram/domain"
+	"time"
 
 	"gorm.io/gorm"
 )
@@ -53,4 +54,14 @@ func (r *OrderRepository) GetOrderByID(tenantID uint, id uint) (*domain.Order, e
 		return nil, err
 	}
 	return &order, nil
+}
+
+// GetUserTotalSpentLast30Days محاسبه مجموع خرید کاربر در ۳۰ روز گذشته برای سیستم VIP تخفیف
+func (r *OrderRepository) GetUserTotalSpentLast30Days(tenantID uint, userID uint) (float64, error) {
+	var total float64
+	thirtyDaysAgo := time.Now().AddDate(0, 0, -30)
+	err := r.DB.Model(&domain.Order{}).
+		Where("tenant_id = ? AND user_id = ? AND status = ? AND created_at >= ?", tenantID, userID, "COMPLETED", thirtyDaysAgo).
+		Select("COALESCE(SUM(total_amount), 0)").Scan(&total).Error
+	return total, err
 }

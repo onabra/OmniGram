@@ -29,3 +29,10 @@ func (r *ServiceRepository) GetServiceByID(tenantID uint, id uint) (*domain.Serv
 	}
 	return &service, nil
 }
+
+// GetServicesByCategory واکشی سرویس‌های یک دسته‌بندی خاص برای فروشگاه
+func (r *ServiceRepository) GetServicesByCategory(tenantID uint, categoryID uint) ([]domain.ServiceItem, error) {
+	var services []domain.ServiceItem
+	err := r.DB.Where("tenant_id = ? AND category_id = ?", tenantID, categoryID).Find(&services).Error
+	return services, err
+}

@@ -65,6 +65,8 @@ func main() {
 
 	receiptRepo := &repository.ReceiptRepository{DB: db}
 
+	categoryRepo := &repository.CategoryRepository{DB: db}
+
 	// ۴. مقداردهی ماژول کیبوردساز داینامیک
 	keyboardBuilder := &telegram.KeyboardBuilder{
 		TranslationRepo: translationRepo,
@@ -96,6 +98,8 @@ func main() {
 		GameRepo:   gameRepo,
 
 		ReceiptRepo: receiptRepo,
+
+		CategoryRepo: categoryRepo,
 	}
 
 	// ۶. روشن کردن ربات و اجرای حلقه دریافت پیام‌ها
