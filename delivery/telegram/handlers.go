@@ -43,6 +43,14 @@ type BotHandler struct {
 // HandleStart مدیریت دستور /start
 func (h *BotHandler) HandleStart(tenant *domain.Tenant, chatID int64, lang string, text string) {
 
+	user, _ := h.UserRepo.GetUserByTelegramID(tenant.ID, chatID)
+	if user != nil {
+		_ = h.UserRepo.UpdateUserState(tenant.ID, user.ID, domain.StateNormal)
+	}
+
+	if !h.CheckForceJoin(tenant, chatID) {
+		return
+	}
 	if !h.CheckForceJoin(tenant, chatID) {
 		return
 	}
@@ -144,11 +152,14 @@ func (h *BotHandler) HandleMessage(tenant *domain.Tenant, chatID int64, text str
 
 	// --- جستجو و مدیریت سفارش توسط ادمین ---
 	if currentUser.State == domain.StateAdminWaitOrderSearch {
+
 		if text == backMainBtnText {
 			_ = h.UserRepo.UpdateUserState(tenant.ID, currentUser.ID, domain.StateNormal)
 		} else {
 			order, err := h.OrderRepo.GetOrder(tenant.ID, text)
+
 			if err != nil {
+				_ = h.UserRepo.UpdateUserState(tenant.ID, currentUser.ID, domain.StateNormal)
 				_ = h.SafeBot.SendMessage(chatID, "❌ سفارشی با این کد رهگیری در سیستم یافت نشد. لطفاً مجدداً بررسی کنید:")
 				return
 			}
@@ -194,6 +205,7 @@ func (h *BotHandler) HandleMessage(tenant *domain.Tenant, chatID int64, text str
 		} else {
 			targetTelegramID, err := strconv.ParseInt(text, 10, 64)
 			if err != nil {
+				_ = h.UserRepo.UpdateUserState(tenant.ID, currentUser.ID, domain.StateNormal)
 				_ = h.SafeBot.SendMessage(chatID, "❌ آیدی تلگرام نامعتبر است. فقط عدد ارسال کنید:")
 				return
 			}
@@ -266,6 +278,7 @@ func (h *BotHandler) HandleMessage(tenant *domain.Tenant, chatID int64, text str
 		} else {
 			amount, err := strconv.ParseFloat(text, 64)
 			if err != nil || amount <= 0 {
+				_ = h.UserRepo.UpdateUserState(tenant.ID, currentUser.ID, domain.StateNormal)
 				_ = h.SafeBot.SendMessage(chatID, "❌ مبلغ نامعتبر است.")
 				return
 			}
