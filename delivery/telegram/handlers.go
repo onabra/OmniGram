@@ -28,8 +28,9 @@ type BotHandler struct {
 	TicketRepo      *repository.TicketRepository
 	GameRepo        *repository.GameRepository
 	ReceiptRepo     *repository.ReceiptRepository
+	DrawRepo        *repository.DrawRepositor
 
-	DrawRepo *repository.DrawRepositor
+	ForceJoinRepo *repository.ForceJoinRepository
 
 	CategoryRepo *repository.CategoryRepository
 
@@ -40,6 +41,9 @@ type BotHandler struct {
 // HandleStart مدیریت دستور /start
 func (h *BotHandler) HandleStart(tenant *domain.Tenant, chatID int64, lang string, text string) {
 
+	if !h.CheckForceJoin(tenant, chatID) {
+		return
+	}
 	// پردازش لینک رفرال (در صورت وجود)
 	parts := strings.Split(text, " ")
 	if len(parts) > 1 && strings.HasPrefix(parts[1], "ref_") {
@@ -80,6 +84,11 @@ func (h *BotHandler) HandleStart(tenant *domain.Tenant, chatID int64, lang strin
 
 // HandleMessage مدیریت پیام‌های متنی ارسالی از سمت کاربر
 func (h *BotHandler) HandleMessage(tenant *domain.Tenant, chatID int64, text string, lang string) {
+	// قفل جوین اجباری
+	if !h.CheckForceJoin(tenant, chatID) {
+		return
+	}
+
 	// تابع کمکی برای گرفتن سریع متن‌ها
 	getText := func(key, fallback string) string {
 		val, err := h.TranslationRepo.GetText(tenant.ID, lang, key)
@@ -588,6 +597,65 @@ func (h *BotHandler) HandlePhoto(tenant *domain.Tenant, message *tgbotapi.Messag
 			_, _ = h.SafeBot.Bot.Send(photoMsg)
 		}
 	}
+}
+
+// CheckForceJoin بررسی عضویت کاربر در کانال‌های اجباری (میدل‌ور)
+func (h *BotHandler) CheckForceJoin(tenant *domain.Tenant, chatID int64) bool {
+	// استثنا برای سوپر ادمین‌ها و مدیران
+	if h.IsSuperAdmin(chatID) || h.IsAdmin(chatID) {
+		return true
+	}
+
+	channels, err := h.ForceJoinRepo.GetActiveForceJoins(tenant.ID)
+	if err != nil || len(channels) == 0 {
+		return true
+	}
+
+	var missingChannels []domain.ForceJoin
+
+	for _, ch := range channels {
+		// استفاده از مبدل چت آیدی برای استانداردسازی
+		targetChatID, err := ResolveChatID(ch.ChatID)
+		if err != nil {
+			continue // اگر آیدی کانال نامعتبر بود، از آن رد می‌شود
+		}
+
+		var chatConfig tgbotapi.ChatConfigWithUser
+		if strings.HasPrefix(targetChatID, "-100") {
+			numericID, _ := strconv.ParseInt(targetChatID, 10, 64)
+			chatConfig = tgbotapi.ChatConfigWithUser{
+				ChatID: numericID,
+				UserID: chatID,
+			}
+		} else {
+			chatConfig = tgbotapi.ChatConfigWithUser{
+				SuperGroupUsername: targetChatID,
+				UserID:             chatID,
+			}
+		}
+
+		member, err := h.SafeBot.Bot.GetChatMember(tgbotapi.GetChatMemberConfig{
+			ChatConfigWithUser: chatConfig,
+		})
+
+		// اگر خطای API داشت یا عضو نبود
+		if err != nil || member.Status == "left" || member.Status == "kicked" {
+			missingChannels = append(missingChannels, ch)
+		}
+	}
+
+	if len(missingChannels) > 0 {
+		msgText := "🛑 *جهت استفاده از ربات، ابتدا باید در کانال‌های حامی زیر عضو شوید:*\n\n👇 پس از عضویت در تمامی کانال‌ها، روی دکمه «بررسی عضویت» کلیک کنید."
+		markup := h.KeyboardBuilder.BuildForceJoinMenu(missingChannels)
+
+		msg := tgbotapi.NewMessage(chatID, msgText)
+		msg.ParseMode = "Markdown"
+		msg.ReplyMarkup = markup
+		_, _ = h.SafeBot.Bot.Send(msg)
+		return false
+	}
+
+	return true
 }
 
 //func (h *BotHandler) HandleMessage(tenant *domain.Tenant, chatID int64, text string, lang string) {

@@ -370,3 +370,22 @@ func (kb *KeyboardBuilder) BuildDrawActionMenu(drawID uint, cost int) tgbotapi.I
 		),
 	)
 }
+
+// BuildForceJoinMenu دکمه‌های شیشه‌ای کانال‌های اجباری
+func (kb *KeyboardBuilder) BuildForceJoinMenu(channels []domain.ForceJoin) tgbotapi.InlineKeyboardMarkup {
+	var rows [][]tgbotapi.InlineKeyboardButton
+
+	for i, ch := range channels {
+		btnText := fmt.Sprintf("📢 عضویت در کانال %d", i+1)
+		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonURL(btnText, ch.Link),
+		))
+	}
+
+	// دکمه بررسی عضویت در پایین همه لینک‌ها
+	rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+		tgbotapi.NewInlineKeyboardButtonData("✅ بررسی عضویت", "verify_force_join"),
+	))
+
+	return tgbotapi.NewInlineKeyboardMarkup(rows...)
+}

@@ -30,10 +30,10 @@ type PollingHandler struct {
 	GameRepo        *repository.GameRepository
 	TicketRepo      *repository.TicketRepository
 	ReceiptRepo     *repository.ReceiptRepository
+	DrawRepo        *repository.DrawRepository
+	CategoryRepo    *repository.CategoryRepository
 
-	DrawRepo *repository.DrawRepository
-
-	CategoryRepo *repository.CategoryRepository
+	ForceJoinRepo *repository.ForceJoinRepository
 
 	SuperAdminIDs []int64
 	AdminIDs      []int64
@@ -90,7 +90,7 @@ func (h *PollingHandler) processUpdateWithRecovery(update tgbotapi.Update) {
 	lang := "fa"
 
 	if update.CallbackQuery != nil {
-		// h.HandleCallback(tenant, update, lang) // در صورت وجود متد آن را از کامنت خارج کنید
+		h.HandleCallback(tenant, *update.CallbackQuery, lang) // در صورت وجود متد آن را از کامنت خارج کنید
 		return
 	}
 
@@ -124,6 +124,8 @@ func (h *PollingHandler) processUpdateWithRecovery(update tgbotapi.Update) {
 			TicketRepo:      h.TicketRepo,
 			GameRepo:        h.GameRepo,
 			ReceiptRepo:     h.ReceiptRepo,
+
+			ForceJoinRepo: h.ForceJoinRepo,
 		}
 
 		if update.Message.Command() == "start" {

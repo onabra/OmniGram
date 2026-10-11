@@ -40,6 +40,8 @@ func main() {
 		&domain.DrawEntry{},
 
 		&domain.Receipt{},
+
+		&domain.ForceJoin{},
 	)
 	if err != nil {
 		log.Println("⚠️ خطا در مایگریشن جداول:", err)
@@ -72,6 +74,8 @@ func main() {
 
 	drawRepo := &repository.DrawRepository{DB: db}
 
+	forceJoinRepo := &repository.ForceJoinRepository{DB: db}
+
 	// ۴. مقداردهی ماژول کیبوردساز داینامیک
 	keyboardBuilder := &telegram.KeyboardBuilder{
 		TranslationRepo: translationRepo,
@@ -102,8 +106,9 @@ func main() {
 		TicketRepo:  ticketRepo,
 		GameRepo:    gameRepo,
 		ReceiptRepo: receiptRepo,
+		DrawRepo:    drawRepo,
 
-		DrawRepo: drawRepo,
+		ForceJoinRepo: forceJoinRepo,
 
 		CategoryRepo: categoryRepo,
 	}

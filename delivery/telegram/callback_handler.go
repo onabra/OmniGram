@@ -19,6 +19,38 @@ func (h *PollingHandler) HandleCallback(tenant *domain.Tenant, update tgbotapi.U
 	// غیرفعال کردن آیکون ساعت شنی روی دکمه بعد از کلیک
 	h.SafeBot.SafeAnswerCallback(callback.ID, "", false)
 
+	// ساخت موقت BotHandler برای استفاده از متد CheckForceJoin
+	botHandlerTemp := &BotHandler{
+		ForceJoinRepo:   h.ForceJoinRepo,
+		SafeBot:         h.SafeBot,
+		KeyboardBuilder: h.KeyboardBuilder,
+		SuperAdminIDs:   h.SuperAdminIDs,
+		AdminIDs:        h.AdminIDs,
+	}
+
+	// هندل کردن دکمه‌ی اختصاصی بررسی جوین اجباری
+	if data == "verify_force_join" {
+		if botHandlerTemp.CheckForceJoin(tenant, chatID) {
+			h.SafeBot.SafeDeleteMessage(chatID, messageID)
+			h.SafeBot.SafeAnswerCallback(callback.ID, "✅ عضویت شما تایید شد! ربات فعال گردید.", true)
+
+			// ارسال مجدد منوی اصلی بعد از تأیید
+			mainMenu, _ := h.KeyboardBuilder.BuildMainMenu(tenant.ID, lang)
+			msg := tgbotapi.NewMessage(chatID, "🔓 قفل ربات باز شد. لطفاً یکی از گزینه‌های زیر را انتخاب کنید:")
+			msg.ReplyMarkup = mainMenu
+			_, _ = h.SafeBot.Bot.Send(msg)
+		} else {
+			h.SafeBot.SafeAnswerCallback(callback.ID, "❌ شما هنوز در تمام کانال‌ها عضو نشده‌اید!", true)
+		}
+		return
+	}
+
+	// قفل کردن سایر دکمه‌های شیشه‌ای در صورت عدم عضویت (به جز ادمین)
+	if !botHandlerTemp.CheckForceJoin(tenant, chatID) {
+		h.SafeBot.SafeAnswerCallback(callback.ID, "🛑 ابتدا در کانال‌های اجباری عضو شوید.", true)
+		return
+	}
+
 	// --- سیستم فروشگاه داینامیک ---
 	if data == "shop_main" {
 		botHandler := &BotHandler{CategoryRepo: h.CategoryRepo}
