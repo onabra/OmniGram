@@ -498,9 +498,11 @@ func (h *PollingHandler) HandleCallback(tenant *domain.Tenant, update tgbotapi.U
 		}
 
 		// بررسی بخش درخواستی
+		// بررسی بخش درخواستی
 		action := strings.TrimPrefix(data, "admin_")
-		switch action {
-		case strings.HasPrefix(action, "orders"):
+
+		switch { // فیکس شد: حذف action از جلوی switch برای استفاده از شرط‌های boolean
+		case action == "orders":
 			// TODO: فراخوانی لیست سفارشات
 			h.SafeBot.SafeAnswerCallback(callback.ID, "در حال بارگذاری سفارشات...", false)
 
@@ -569,18 +571,22 @@ func (h *PollingHandler) HandleCallback(tenant *domain.Tenant, update tgbotapi.U
 				}
 			}
 			return
-		case "tickets":
+
+		case action == "tickets":
 			// TODO: فراخوانی تیکت‌های پشتیبانی
 			h.SafeBot.SafeAnswerCallback(callback.ID, "در حال بارگذاری تیکت‌ها...", false)
-		case "stats":
+
+		case action == "stats":
 			if isSuper {
 				// TODO: واکشی آمار و ویرایش پیام
 				h.SafeBot.SafeAnswerCallback(callback.ID, "آمار به زودی لود می‌شود...", false)
 			}
+
 		// ... سایر کیس‌ها به مرور تکمیل می‌شوند ...
 		default:
 			h.SafeBot.SafeAnswerCallback(callback.ID, "این بخش به زودی فعال می‌شود.", false)
 		}
+
 		return
 	}
 
