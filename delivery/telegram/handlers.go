@@ -120,6 +120,8 @@ func (h *BotHandler) HandleMessage(tenant *domain.Tenant, chatID int64, text str
 
 	btnWithdraw := getText("btn_withdraw", "برداشت")
 
+	btnReferral := getText("btn_referral", "🔗 زیرمجموعه‌گیری")
+
 	// پیدا کردن کاربر از دیتابیس برای عملیاتی که نیاز به اطلاعات کاربر دارند
 	// پیدا کردن کاربر از دیتابیس
 	currentUser, err := h.UserRepo.GetUserByTelegramID(tenant.ID, chatID)
@@ -854,7 +856,7 @@ func (h *BotHandler) HandleMessage(tenant *domain.Tenant, chatID int64, text str
 			_, _ = h.SafeBot.Bot.Send(msg)
 		}
 
-	case refStatsBtnText:
+	case refStatsBtnText, btnReferral:
 		if currentUser != nil {
 			stats, err := h.ReferralRepo.GetReferralStats(tenant.ID, currentUser.ID)
 			if err == nil && stats != nil {

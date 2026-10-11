@@ -47,7 +47,7 @@ func main() {
 	}
 
 	// --- جایگزینی: فراخوانی تابع مجزای Seed Data ---
-	repository.RunSeeder(db, cfg.MasterBotToken)
+	//repository.RunSeeder(db, cfg.MasterBotToken)
 
 	redisClient := core.SetupRedis(cfg.RedisAddr, cfg.RedisPassword)
 
