@@ -96,6 +96,7 @@ type User struct {
 	PointBalance   float64 // موجودی امتیازی کاربر[cite: 1]
 	StarsBalance   float64 // موجودی استارز کاربر[cite: 1]
 	DrawTickets    int
+	CurrentTaskID  uint      // اضافه شد: ذخیره آیدی تسک دستی که کاربر در حال ارسال عکس برای آن است
 	Language       string    // زبان انتخابی کاربر برای نمایش متون[cite: 1]
 	LastActiveDate time.Time // تاریخ آخرین فعالیت برای محاسبه قانون ۱۰ روز خاموشی و تخصیص ۵۰٪ امتیاز به معرف جدید[cite: 1]
 	State          UserState `gorm:"default:'NORMAL'"` // برای جلوگیری از باز شدن چند بخش همزمان

@@ -17,6 +17,8 @@ type UserRepository interface {
 	AddBalances(tenantID uint, userID uint, toman, point, stars float64) error
 
 	UpdateDrawTickets(tenantID uint, userID uint, tickets int) error
+
+	UpdateUserTaskID(tenantID uint, userID uint, taskID uint) error
 }
 
 type userRepository struct {
@@ -87,4 +89,11 @@ func (r *userRepository) UpdateDrawTickets(tenantID uint, userID uint, tickets i
 	return r.db.Model(&domain.User{}).
 		Where("id = ? AND tenant_id = ?", userID, tenantID).
 		Update("draw_tickets", tickets).Error
+}
+
+// UpdateUserTaskID ذخیره آیدی تسک در حال انجام کاربر
+func (r *userRepository) UpdateUserTaskID(tenantID uint, userID uint, taskID uint) error {
+	return r.db.Model(&domain.User{}).
+		Where("tenant_id = ? AND id = ?", tenantID, userID).
+		Update("current_task_id", taskID).Error
 }

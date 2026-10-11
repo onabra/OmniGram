@@ -28,7 +28,7 @@ type BotHandler struct {
 	TicketRepo      *repository.TicketRepository
 	GameRepo        *repository.GameRepository
 	ReceiptRepo     *repository.ReceiptRepository
-	DrawRepo        *repository.DrawRepositor
+	DrawRepo        *repository.DrawRepository
 
 	ForceJoinRepo *repository.ForceJoinRepository
 
@@ -450,7 +450,7 @@ func (h *BotHandler) HandleMessage(tenant *domain.Tenant, chatID int64, text str
 		}
 
 		msgText := fmt.Sprintf("📝 *تسک جدید*\n\n📌 عنوان: %s\n🎁 پاداش: %.0f %s\n\n👇 برای دریافت پاداش، ابتدا از طریق دکمه زیر در کانال عضو شوید و سپس روی بررسی کلیک کنید:", availableTask.Title, availableTask.RewardAmount, availableTask.RewardType)
-		taskMenu := h.KeyboardBuilder.BuildTaskActionMenu(availableTask.ID, availableTask.TargetLink)
+		taskMenu := h.KeyboardBuilder.BuildTaskActionMenu(availableTask.ID, availableTask.TargetLink, availableTask.TaskType)
 
 		msg := tgbotapi.NewMessage(chatID, msgText)
 		msg.ParseMode = "Markdown"
@@ -596,7 +596,46 @@ func (h *BotHandler) HandlePhoto(tenant *domain.Tenant, message *tgbotapi.Messag
 			photoMsg.ReplyMarkup = h.KeyboardBuilder.BuildAdminReceiptMenu(receipt.ID)
 			_, _ = h.SafeBot.Bot.Send(photoMsg)
 		}
+	} else if currentUser.State == domain.StateWaitTask {
+		// گرفتن باکیفیت‌ترین سایز عکس ارسالی
+		photo := message.Photo[len(message.Photo)-1]
+		fileID := photo.FileID
+
+		task, err := h.TaskRepo.GetTaskByID(tenant.ID, currentUser.CurrentTaskID)
+		if err != nil || task == nil {
+			_ = h.SafeBot.SendMessage(chatID, "❌ تسک مورد نظر یافت نشد.")
+			_ = h.UserRepo.UpdateUserState(tenant.ID, currentUser.ID, domain.StateNormal)
+			return
+		}
+
+		// ثبت اسکرین‌شات در دیتابیس
+		submission := &domain.TaskSubmission{
+			TenantID: tenant.ID,
+			UserID:   currentUser.ID,
+			TaskID:   task.ID,
+			FileID:   fileID,
+			Status:   "PENDING",
+		}
+		_ = h.TaskRepo.SubmitTask(submission)
+
+		_ = h.SafeBot.SendMessage(chatID, "✅ اسکرین‌شات شما با موفقیت ثبت شد و در صف بررسی ادمین قرار گرفت. پس از تأیید، پاداش واریز خواهد شد.")
+		_ = h.UserRepo.UpdateUserState(tenant.ID, currentUser.ID, domain.StateNormal)
+		_ = h.UserRepo.UpdateUserTaskID(tenant.ID, currentUser.ID, 0) // پاک کردن آیدی تسک
+
+		// ارسال عکس به کانال گزارش برای تأیید ادمین
+		if tenant.ReportChannelID != "" {
+			chID, _ := strconv.ParseInt(tenant.ReportChannelID, 10, 64)
+			caption := fmt.Sprintf("📸 *اثبات انجام تسک جدید*\n\n👤 کاربر: [%s](tg://user?id=%d)\n📌 عنوان تسک: `%s`\n🎁 پاداش تسک: %.0f %s\n\nلطفاً اسکرین‌شات را بررسی کنید:",
+				currentUser.FirstName, currentUser.TelegramID, task.Title, task.RewardAmount, task.RewardType)
+
+			photoMsg := tgbotapi.NewPhoto(chID, tgbotapi.FileID(fileID))
+			photoMsg.Caption = caption
+			photoMsg.ParseMode = "Markdown"
+			photoMsg.ReplyMarkup = h.KeyboardBuilder.BuildAdminTaskProofMenu(submission.ID)
+			_, _ = h.SafeBot.Bot.Send(photoMsg)
+		}
 	}
+
 }
 
 // CheckForceJoin بررسی عضویت کاربر در کانال‌های اجباری (میدل‌ور)

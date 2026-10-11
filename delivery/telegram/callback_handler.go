@@ -441,9 +441,22 @@ func (h *PollingHandler) HandleCallback(tenant *domain.Tenant, update tgbotapi.U
 		}
 
 		// جلوگیری مضاعف از پاداش تکراری
+
 		if h.TaskRepo.HasUserCompletedTask(tenant.ID, user.ID, task.ID) {
 			h.SafeBot.SafeAnswerCallback(callback.ID, "✅ شما قبلاً پاداش این تسک را دریافت کرده‌اید.", true)
 			h.SafeBot.SafeDeleteMessage(chatID, messageID)
+			return
+		}
+
+		if task.TaskType == "manual_proof" {
+			_ = h.UserRepo.UpdateUserTaskID(tenant.ID, user.ID, task.ID)
+			_ = h.UserRepo.UpdateUserState(tenant.ID, user.ID, domain.StateWaitTask)
+
+			h.SafeBot.SafeAnswerCallback(callback.ID, "📸 لطفاً عکس (اسکرین‌شات) انجام این تسک را ارسال کنید.", true)
+			h.SafeBot.SafeDeleteMessage(chatID, messageID) // پیام دکمه‌ها را پاک می‌کنیم
+			msg := tgbotapi.NewMessage(chatID, "📸 لطفاً **اسکرین‌شات** اثبات انجام این تسک را دقیقاً در همینجا ارسال کنید:\n\n*(فقط یک عکس ارسال کنید)*")
+			msg.ParseMode = "Markdown"
+			_, _ = h.SafeBot.Bot.Send(msg)
 			return
 		}
 
@@ -647,6 +660,62 @@ func (h *PollingHandler) HandleCallback(tenant *domain.Tenant, update tgbotapi.U
 				h.SafeBot.SafeEditText(chatID, messageID, "❌ این فیش توسط ادمین رد شد.", nil)
 				if userUser != nil {
 					_ = h.SafeBot.SendMessage(userUser.TelegramID, "❌ فیش واریزی شما تأیید نشد. لطفاً در صورت بروز مشکل به پشتیبانی پیام دهید.")
+				}
+			}
+			return
+
+		case strings.HasPrefix(action, "taskproof_"):
+			parts := strings.Split(action, "_")
+			if len(parts) != 3 {
+				return
+			}
+			proofAction := parts[1] // approve یا reject
+			subID, _ := strconv.Atoi(parts[2])
+
+			submission, err := h.TaskRepo.GetSubmissionByID(tenant.ID, uint(subID))
+			if err != nil || submission.Status != "PENDING" {
+				h.SafeBot.SafeAnswerCallback(callback.ID, "❌ این اسکرین‌شات قبلاً بررسی شده است.", true)
+				return
+			}
+
+			task, err := h.TaskRepo.GetTaskByID(tenant.ID, submission.TaskID)
+			if err != nil {
+				return
+			}
+
+			userUser, _ := h.UserRepo.GetUserByID(tenant.ID, submission.UserID)
+
+			if proofAction == "approve" {
+				submission.Status = "APPROVED"
+				_ = h.TaskRepo.UpdateSubmissionStatus(submission)
+
+				// کسر از ظرفیت تسک
+				_ = h.TaskRepo.DecreaseCapacity(tenant.ID, task.ID)
+
+				// واریز پاداش
+				if userUser != nil {
+					if task.RewardType == "toman" {
+						userUser.TomanBalance += task.RewardAmount
+					} else {
+						userUser.PointBalance += task.RewardAmount
+					}
+					_ = h.UserRepo.UpdateBalances(tenant.ID, userUser.ID, userUser.TomanBalance, userUser.PointBalance, userUser.StarsBalance)
+
+					_ = h.SafeBot.SendMessage(userUser.TelegramID, fmt.Sprintf("✅ اسکرین‌شات شما تأیید شد!\n🎉 پاداش %.0f %s به کیف پول شما اضافه شد.", task.RewardAmount, task.RewardType))
+				}
+
+				h.SafeBot.SafeAnswerCallback(callback.ID, "✅ تسک تأیید و پاداش واریز شد.", false)
+				h.SafeBot.SafeEditText(chatID, messageID, "✅ اسکرین‌شات تأیید و پاداش به کاربر داده شد.", nil)
+
+			} else if proofAction == "reject" {
+				submission.Status = "REJECTED"
+				_ = h.TaskRepo.UpdateSubmissionStatus(submission)
+
+				h.SafeBot.SafeAnswerCallback(callback.ID, "❌ اسکرین‌شات رد شد.", false)
+				h.SafeBot.SafeEditText(chatID, messageID, "❌ این اسکرین‌شات رد شد.", nil)
+
+				if userUser != nil {
+					_ = h.SafeBot.SendMessage(userUser.TelegramID, "❌ اسکرین‌شات ارسالی شما برای تسک تأیید نشد. لطفاً مجدداً با دقت انجام دهید.")
 				}
 			}
 			return

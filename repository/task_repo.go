@@ -56,3 +56,17 @@ func (r *TaskRepository) HasUserCompletedTask(tenantID uint, userID uint, taskID
 func (r *TaskRepository) SubmitTask(submission *domain.TaskSubmission) error {
 	return r.DB.Create(submission).Error
 }
+
+// [repository/task_repo.go]
+
+// GetSubmissionByID دریافت اطلاعات یک سابمیشن (اثبات تسک)
+func (r *TaskRepository) GetSubmissionByID(tenantID uint, subID uint) (*domain.TaskSubmission, error) {
+	var sub domain.TaskSubmission
+	err := r.DB.Where("tenant_id = ? AND id = ?", tenantID, subID).First(&sub).Error
+	return &sub, err
+}
+
+// UpdateSubmissionStatus آپدیت وضعیت اسکرین‌شات ارسالی کاربر
+func (r *TaskRepository) UpdateSubmissionStatus(sub *domain.TaskSubmission) error {
+	return r.DB.Model(sub).Update("status", sub.Status).Error
+}

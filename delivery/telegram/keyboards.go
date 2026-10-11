@@ -269,8 +269,8 @@ func (kb *KeyboardBuilder) BuildOrderTicketMenu(orderID uint) tgbotapi.InlineKey
 	)
 }
 
-// BuildTaskActionMenu دکمه‌های شیشه‌ای برای انجام وظیفه (عضویت و بررسی)
-func (kb *KeyboardBuilder) BuildTaskActionMenu(taskID uint, targetLink string) tgbotapi.InlineKeyboardMarkup {
+// BuildTaskActionMenu دکمه‌های شیشه‌ای برای انجام وظیفه (عضویت و بررسی یا ارسال اسکرین‌شات)
+func (kb *KeyboardBuilder) BuildTaskActionMenu(taskID uint, targetLink string, taskType string) tgbotapi.InlineKeyboardMarkup {
 	idStr := fmt.Sprintf("%d", taskID)
 
 	// تبدیل یوزرنیم به لینک برای دکمه شیشه‌ای
@@ -278,18 +278,22 @@ func (kb *KeyboardBuilder) BuildTaskActionMenu(taskID uint, targetLink string) t
 	if strings.HasPrefix(targetLink, "@") {
 		btnURL = "https://t.me/" + strings.TrimPrefix(targetLink, "@")
 	} else if strings.HasPrefix(targetLink, "-100") {
-		// برای آیدی عددی پرایوت، لینک در دسترس نیست اما فرمت پر می‌شود که API خطا ندهد
 		btnURL = "https://t.me"
 	} else {
 		btnURL = targetLink
 	}
 
+	verifyBtnText := "✅ بررسی عضویت و دریافت پاداش"
+	if taskType == "manual_proof" {
+		verifyBtnText = "📸 ارسال اسکرین‌شات (اثبات انجام)"
+	}
+
 	return tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonURL("🔗 عضویت در کانال", btnURL),
+			tgbotapi.NewInlineKeyboardButtonURL("🔗 ورود به لینک / کانال", btnURL),
 		),
 		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("✅ بررسی عضویت و دریافت پاداش", "verify_task_"+idStr),
+			tgbotapi.NewInlineKeyboardButtonData(verifyBtnText, "verify_task_"+idStr),
 		),
 	)
 }
@@ -388,4 +392,15 @@ func (kb *KeyboardBuilder) BuildForceJoinMenu(channels []domain.ForceJoin) tgbot
 	))
 
 	return tgbotapi.NewInlineKeyboardMarkup(rows...)
+}
+
+// BuildAdminTaskProofMenu دکمه‌های تأیید اسکرین‌شات تسک دستی برای ادمین
+func (kb *KeyboardBuilder) BuildAdminTaskProofMenu(subID uint) tgbotapi.InlineKeyboardMarkup {
+	idStr := fmt.Sprintf("%d", subID)
+	return tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("✅ تأیید و واریز پاداش", "admin_taskproof_approve_"+idStr),
+			tgbotapi.NewInlineKeyboardButtonData("❌ رد اسکرین‌شات", "admin_taskproof_reject_"+idStr),
+		),
+	)
 }
