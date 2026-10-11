@@ -36,6 +36,9 @@ func main() {
 		&domain.Order{},
 		&domain.Transaction{},
 
+		&domain.LuckyDraw{},
+		&domain.DrawEntry{},
+
 		&domain.Receipt{},
 	)
 	if err != nil {
@@ -67,6 +70,8 @@ func main() {
 
 	categoryRepo := &repository.CategoryRepository{DB: db}
 
+	drawRepo := &repository.DrawRepository{DB: db}
+
 	// ۴. مقداردهی ماژول کیبوردساز داینامیک
 	keyboardBuilder := &telegram.KeyboardBuilder{
 		TranslationRepo: translationRepo,
@@ -94,10 +99,11 @@ func main() {
 		SuperAdminIDs: cfg.SuperAdminIDs,
 		AdminIDs:      cfg.AdminIDs,
 
-		TicketRepo: ticketRepo,
-		GameRepo:   gameRepo,
-
+		TicketRepo:  ticketRepo,
+		GameRepo:    gameRepo,
 		ReceiptRepo: receiptRepo,
+
+		DrawRepo: drawRepo,
 
 		CategoryRepo: categoryRepo,
 	}

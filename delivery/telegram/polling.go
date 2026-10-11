@@ -27,12 +27,11 @@ type PollingHandler struct {
 	OrderRepo       *repository.OrderRepository
 	ServiceRepo     *repository.ServiceRepository
 	TaskRepo        *repository.TaskRepository
+	GameRepo        *repository.GameRepository
+	TicketRepo      *repository.TicketRepository
+	ReceiptRepo     *repository.ReceiptRepository
 
-	GameRepo *repository.GameRepository
-
-	TicketRepo *repository.TicketRepository
-
-	ReceiptRepo *repository.ReceiptRepository
+	DrawRepo *repository.DrawRepository
 
 	CategoryRepo *repository.CategoryRepository
 
@@ -158,6 +157,8 @@ func (h *PollingHandler) processUpdateWithRecovery(update tgbotapi.Update) {
 			TicketRepo:  h.TicketRepo,
 			GameRepo:    h.GameRepo,
 			ReceiptRepo: h.ReceiptRepo,
+
+			DrawRepo: h.DrawRepo,
 
 			CategoryRepo: h.CategoryRepo,
 		}

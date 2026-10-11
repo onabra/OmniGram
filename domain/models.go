@@ -248,3 +248,28 @@ type Receipt struct {
 	Status    string  `gorm:"default:'PENDING'"` // وضعیت: PENDING, APPROVED, REJECTED
 	CreatedAt time.Time
 }
+
+// LuckyDraw (قرعه‌کشی‌ها)
+type LuckyDraw struct {
+	ID              uint      `gorm:"primaryKey"`
+	TenantID        uint      `gorm:"index"`
+	Title           string    // نام قرعه‌کشی
+	Description     string    // توضیحات
+	TicketCost      int       // هزینه ورود (تعداد تیکت)
+	MinParticipants int       // حداقل شرکت‌کننده
+	MaxParticipants int       // حداکثر شرکت‌کننده
+	WinnersCount    int       // تعداد برندگان
+	RewardPerWinner float64   // جایزه هر برنده (استارز/امتیاز)
+	RewardType      string    // نوع جایزه: STARS, POINT, TOMAN
+	Status          string    `gorm:"default:'ACTIVE'"` // ACTIVE, COMPLETED, CANCELED
+	EndDate         time.Time // زمان پایان
+}
+
+// DrawEntry (شرکت‌کنندگان قرعه‌کشی)
+type DrawEntry struct {
+	ID          uint `gorm:"primaryKey"`
+	TenantID    uint `gorm:"index"`
+	LuckyDrawID uint `gorm:"index"`
+	UserID      uint `gorm:"index"`
+	Entries     int  // تعداد شانس‌های ثبت شده (کاربر می‌تواند چند تیکت خرج کند)
+}

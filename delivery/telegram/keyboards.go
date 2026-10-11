@@ -359,3 +359,14 @@ func (kb *KeyboardBuilder) BuildDynamicServiceMenu(services []domain.ServiceItem
 
 	return tgbotapi.NewInlineKeyboardMarkup(rows...)
 }
+
+// BuildDrawActionMenu دکمه شیشه‌ای برای شرکت در قرعه‌کشی
+func (kb *KeyboardBuilder) BuildDrawActionMenu(drawID uint, cost int) tgbotapi.InlineKeyboardMarkup {
+	idStr := fmt.Sprintf("%d", drawID)
+	btnText := fmt.Sprintf("🎟 شرکت در قرعه‌کشی (%d تیکت)", cost)
+	return tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData(btnText, "enter_draw_"+idStr),
+		),
+	)
+}

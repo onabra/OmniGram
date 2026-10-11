@@ -482,6 +482,53 @@ func (h *PollingHandler) HandleCallback(tenant *domain.Tenant, update tgbotapi.U
 		return
 	}
 
+	// کاربر روی دکمه شرکت در قرعه‌کشی کلیک کرده است
+	if strings.HasPrefix(data, "enter_draw_") {
+		drawIDStr := strings.TrimPrefix(data, "enter_draw_")
+		drawID, _ := strconv.Atoi(drawIDStr)
+
+		user, _ := h.UserRepo.GetUserByTelegramID(tenant.ID, chatID)
+		if user == nil {
+			h.SafeBot.SafeAnswerCallback(callback.ID, "کاربر یافت نشد.", true)
+			return
+		}
+
+		draw, err := h.DrawRepo.GetDrawByID(tenant.ID, uint(drawID))
+		if err != nil || draw.Status != "ACTIVE" {
+			h.SafeBot.SafeAnswerCallback(callback.ID, "❌ این قرعه‌کشی پایان یافته یا لغو شده است.", true)
+			return
+		}
+
+		if user.DrawTickets < draw.TicketCost {
+			h.SafeBot.SafeAnswerCallback(callback.ID, "❌ تیکت‌های شما برای شرکت در این قرعه‌کشی کافی نیست!", true)
+			return
+		}
+
+		totalEntries, _ := h.DrawRepo.GetTotalEntries(tenant.ID, draw.ID)
+		if draw.MaxParticipants > 0 && int(totalEntries) >= draw.MaxParticipants {
+			h.SafeBot.SafeAnswerCallback(callback.ID, "❌ ظرفیت این قرعه‌کشی تکمیل شده است.", true)
+			return
+		}
+
+		// کسر تیکت و ثبت شانس
+		user.DrawTickets -= draw.TicketCost
+		_ = h.UserRepo.UpdateDrawTickets(tenant.ID, user.ID, user.DrawTickets)
+
+		entry := &domain.DrawEntry{
+			TenantID:    tenant.ID,
+			LuckyDrawID: draw.ID,
+			UserID:      user.ID,
+			Entries:     1,
+		}
+		_ = h.DrawRepo.AddEntry(entry)
+
+		h.SafeBot.SafeAnswerCallback(callback.ID, "✅ با موفقیت در قرعه‌کشی شرکت کردید!", true)
+
+		successMsg := fmt.Sprintf("🎉 شما 1 شانس در قرعه‌کشی *%s* ثبت کردید.\n🎟 تیکت‌های باقی‌مانده: %d", draw.Title, user.DrawTickets)
+		h.SafeBot.SafeEditText(chatID, messageID, successMsg, nil)
+		return
+	}
+
 	// --- مسیریابی دکمه‌های پنل مدیریت ---
 	if strings.HasPrefix(data, "admin_") {
 		// بررسی امنیتی: آیا کسی که کلیک کرده واقعا ادمین است؟

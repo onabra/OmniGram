@@ -26,10 +26,10 @@ type BotHandler struct {
 	ServiceRepo     *repository.ServiceRepository
 	TaskRepo        *repository.TaskRepository
 	TicketRepo      *repository.TicketRepository
+	GameRepo        *repository.GameRepository
+	ReceiptRepo     *repository.ReceiptRepository
 
-	GameRepo *repository.GameRepository
-
-	ReceiptRepo *repository.ReceiptRepository
+	DrawRepo *repository.DrawRepositor
 
 	CategoryRepo *repository.CategoryRepository
 
@@ -107,6 +107,8 @@ func (h *BotHandler) HandleMessage(tenant *domain.Tenant, chatID int64, text str
 	supportBtnText := getText("btn_support", "ارتباط با پشتیبانی")
 
 	btnDoTasks := getText("btn_do_tasks", "📝 انجام وظایف (کسب درآمد)")
+
+	btnRefLeague := getText("btn_ref_league", "لیگ")
 
 	// پیدا کردن کاربر از دیتابیس برای عملیاتی که نیاز به اطلاعات کاربر دارند
 	// پیدا کردن کاربر از دیتابیس
@@ -282,6 +284,31 @@ func (h *BotHandler) HandleMessage(tenant *domain.Tenant, chatID int64, text str
 			msg := tgbotapi.NewMessage(chatID, msgText)
 			msg.ParseMode = "Markdown"
 			msg.ReplyMarkup = shopMenu
+			_, _ = h.SafeBot.Bot.Send(msg)
+		}
+
+	case btnRefLeague:
+		// واکشی قرعه‌کشی‌های فعال
+		draws, err := h.DrawRepo.GetActiveDraws(tenant.ID)
+		if err != nil || len(draws) == 0 {
+			_ = h.SafeBot.SendMessage(chatID, "🏆 در حال حاضر مسابقه یا قرعه‌کشی فعالی وجود ندارد. لطفاً بعداً سر بزنید.")
+			return
+		}
+
+		// ارسال پست جداگانه برای هر قرعه‌کشی
+		for _, draw := range draws {
+			totalEntries, _ := h.DrawRepo.GetTotalEntries(tenant.ID, draw.ID)
+
+			// تبدیل تاریخ میلادی به فرمت خواناتر (در نسخه‌های بعدی می‌توان شمسی کرد)
+			endDate := draw.EndDate.Format("2006-01-02 15:04")
+
+			msgText := fmt.Sprintf("🎰 *%s*\n\n📝 توضیحات: %s\n\n🎟 هزینه ورود: %d تیکت\n🏆 تعداد برندگان: %d نفر\n🎁 جایزه هر برنده: %.0f %s\n👥 تعداد شانس‌های ثبت شده: %d / %d\n\n⏱ پایان: %s",
+				draw.Title, draw.Description, draw.TicketCost, draw.WinnersCount, draw.RewardPerWinner, draw.RewardType, totalEntries, draw.MaxParticipants, endDate)
+
+			markup := h.KeyboardBuilder.BuildDrawActionMenu(draw.ID, draw.TicketCost)
+			msg := tgbotapi.NewMessage(chatID, msgText)
+			msg.ParseMode = "Markdown"
+			msg.ReplyMarkup = markup
 			_, _ = h.SafeBot.Bot.Send(msg)
 		}
 
