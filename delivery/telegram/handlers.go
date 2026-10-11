@@ -8,6 +8,7 @@ import (
 	"log"
 	"strconv"
 	"strings"
+	"time"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
@@ -121,6 +122,7 @@ func (h *BotHandler) HandleMessage(tenant *domain.Tenant, chatID int64, text str
 	btnWithdraw := getText("btn_withdraw", "برداشت")
 
 	btnReferral := getText("btn_referral", "🔗 زیرمجموعه‌گیری")
+	btnFreeGift := getText("btn_free_gift", "🎁 هدیه رایگان")
 
 	// پیدا کردن کاربر از دیتابیس برای عملیاتی که نیاز به اطلاعات کاربر دارند
 	// پیدا کردن کاربر از دیتابیس
@@ -981,6 +983,29 @@ func (h *BotHandler) HandleMessage(tenant *domain.Tenant, chatID int64, text str
 		msg.ParseMode = "Markdown"
 		msg.ReplyMarkup = accMenu // موقتاً از کیبورد حاوی بازگشت استفاده می‌کنیم
 		_, _ = h.SafeBot.Bot.Send(msg)
+
+	case btnFreeGift:
+		now := time.Now()
+
+		// بررسی گذشت ۲۴ ساعت از آخرین دریافت هدیه
+		if now.Sub(currentUser.LastFreeGiftDate).Hours() < 24 {
+			timeLeft := 24 - now.Sub(currentUser.LastFreeGiftDate).Hours()
+			hours := int(timeLeft)
+			minutes := int((timeLeft - float64(hours)) * 60)
+
+			msgText := fmt.Sprintf("⏳ شما هدیه رایگان امروز خود را دریافت کرده‌اید!\n\nبرای دریافت هدیه بعدی باید **%d ساعت و %d دقیقه** دیگر صبر کنید.", hours, minutes)
+			_ = h.SafeBot.SendMessage(chatID, msgText)
+			return
+		}
+
+		// واریز پاداش (۱ امتیاز پیش‌فرض)
+		rewardAmount := 1.0
+		currentUser.PointBalance += rewardAmount
+		_ = h.UserRepo.UpdateBalances(tenant.ID, currentUser.ID, currentUser.TomanBalance, currentUser.PointBalance, currentUser.StarsBalance)
+		_ = h.UserRepo.UpdateLastFreeGift(tenant.ID, currentUser.ID, now)
+
+		successMsg := fmt.Sprintf("🎁 *هدیه روزانه شما!*\n\nتبریک! مقدار **%.0f امتیاز** به عنوان هدیه رایگان به کیف پول شما اضافه شد.\nفردا هم به ما سر بزنید!", rewardAmount)
+		_ = h.SafeBot.SendMessage(chatID, successMsg)
 
 	default:
 		if strings.HasPrefix(text, "انتقال") && currentUser != nil && h.WalletService != nil {

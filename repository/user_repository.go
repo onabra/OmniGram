@@ -2,6 +2,7 @@ package repository
 
 import (
 	"OmniGram/domain" // نام ماژول خود را جایگزین کنید
+	"time"
 
 	"gorm.io/gorm"
 )
@@ -22,6 +23,7 @@ type UserRepository interface {
 	UpdateAdminTaskTarget(tenantID uint, adminID uint, taskID uint) error
 	UpdateAdminTicketTarget(tenantID uint, adminID uint, ticketID uint) error
 	GetAllUserTelegramIDs(tenantID uint) ([]int64, error)
+	UpdateLastFreeGift(tenantID uint, userID uint, date time.Time) error
 }
 
 type userRepository struct {
@@ -148,4 +150,11 @@ func (r *userRepository) GetAllUserTelegramIDs(tenantID uint) ([]int64, error) {
 	var ids []int64
 	err := r.db.Model(&domain.User{}).Where("tenant_id = ?", tenantID).Pluck("telegram_id", &ids).Error
 	return ids, err
+}
+
+// UpdateLastFreeGift بروزرسانی زمان دریافت آخرین هدیه روزانه کاربر
+func (r *userRepository) UpdateLastFreeGift(tenantID uint, userID uint, date time.Time) error {
+	return r.db.Model(&domain.User{}).
+		Where("tenant_id = ? AND id = ?", tenantID, userID).
+		Update("last_free_gift_date", date).Error
 }

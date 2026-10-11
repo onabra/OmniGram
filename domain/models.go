@@ -137,6 +137,7 @@ type User struct {
 	AdminTargetAction       string // نوع عملیات ادمین (مثل کسر یا افزایش)
 	AdminTargetCategoryID   uint
 	LastActiveDate          time.Time // تاریخ آخرین فعالیت برای محاسبه قانون ۱۰ روز خاموشی و تخصیص ۵۰٪ امتیاز به معرف جدید[cite: 1]
+	LastFreeGiftDate        time.Time
 	State                   UserState `gorm:"default:'NORMAL'"` // برای جلوگیری از باز شدن چند بخش همزمان
 }
 
