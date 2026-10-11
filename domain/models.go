@@ -36,6 +36,11 @@ const (
 	StateAdminWaitBalanceAmount UserState = "ADMIN_WAIT_BALANCE_AMOUNT" // ادمین در انتظار ارسال مبلغ برای شارژ/کسر
 	StateAdminWaitSettingValue  UserState = "ADMIN_WAIT_SETTING_VALUE"  // ادمین در انتظار ارسال مقدار جدید برای تنظیمات
 
+	StateAdminWaitCategoryName    UserState = "ADMIN_WAIT_CAT_NAME"      // انتظار نام دسته‌بندی
+	StateAdminWaitServiceName     UserState = "ADMIN_WAIT_SRV_NAME"      // انتظار نام سرویس
+	StateAdminWaitServicePriceUSD UserState = "ADMIN_WAIT_SRV_PRICE_USD" // انتظار قیمت دلاری سرویس
+	StateAdminWaitDollarPrice     UserState = "ADMIN_WAIT_DOLLAR_PRICE"  // انتظار قیمت روز دلار
+
 )
 
 // Tenant (موجودیت اصلی برای معماری SaaS)
@@ -48,6 +53,7 @@ type Tenant struct {
 	TransferFeePercent  float64 // درصد کارمزد انتقال (مثلا 5.0 برای ۵ درصد)
 	CancelFeePercent    float64 // درصد کارمزد لغو سفارش
 	InactiveBonusAmount float64 // مقدار امتیازی که اگر کاربر ۱۰ روز غیرفعال بود به معرف جدید میرسه
+	DollarPrice         float64 `gorm:"default:60000"` // اضافه شد: قیمت روز دلار (تومان)
 	CreatedAt           time.Time
 	UpdatedAt           time.Time
 }
@@ -63,14 +69,16 @@ type Category struct {
 
 // ServiceItem (مثلاً ممبر ایرانی گارانتی 30 روزه)
 type ServiceItem struct {
-	ID         uint `gorm:"primaryKey"`
-	CategoryID uint `gorm:"index"`
-	TenantID   uint `gorm:"index"`
-	Title      string
-	NameKey    string // کلید ترجمه نام سرویس
-	PriceToman float64
-	PriceStars float64
-	Capacity   int
+	ID            uint `gorm:"primaryKey"`
+	CategoryID    uint `gorm:"index"`
+	TenantID      uint `gorm:"index"`
+	Title         string
+	NameKey       string // کلید ترجمه نام سرویس
+	PriceToman    float64
+	PriceStars    float64
+	Capacity      int
+	PriceUSD      float64 //  قیمت پایه دلاری
+	ProfitPercent float64 //  درصد سود این سرویس
 }
 
 // Translation (سیستم چندزبانه و بدون هاردکد)
@@ -110,12 +118,12 @@ type User struct {
 	CurrentWithdrawCurrency string  // ذخیره نوع ارز درخواستی برای برداشت (STARS یا GIFT)
 	CurrentWithdrawAmount   float64 // ذخیره مقدار درخواستی برای برداشت
 
-	AdminTargetUserID  uint   // آیدی کاربری که ادمین در حال ویرایش اوست
-	AdminTargetSetting string // نام تنظیمی که ادمین در حال ویرایش آن است
-	AdminTargetAction  string // نوع عملیات ادمین (مثل کسر یا افزایش)
-
-	LastActiveDate time.Time // تاریخ آخرین فعالیت برای محاسبه قانون ۱۰ روز خاموشی و تخصیص ۵۰٪ امتیاز به معرف جدید[cite: 1]
-	State          UserState `gorm:"default:'NORMAL'"` // برای جلوگیری از باز شدن چند بخش همزمان
+	AdminTargetUserID     uint   // آیدی کاربری که ادمین در حال ویرایش اوست
+	AdminTargetSetting    string // نام تنظیمی که ادمین در حال ویرایش آن است
+	AdminTargetAction     string // نوع عملیات ادمین (مثل کسر یا افزایش)
+	AdminTargetCategoryID uint
+	LastActiveDate        time.Time // تاریخ آخرین فعالیت برای محاسبه قانون ۱۰ روز خاموشی و تخصیص ۵۰٪ امتیاز به معرف جدید[cite: 1]
+	State                 UserState `gorm:"default:'NORMAL'"` // برای جلوگیری از باز شدن چند بخش همزمان
 }
 
 // Referral (سیستم رفرال‌های ۴ گانه)

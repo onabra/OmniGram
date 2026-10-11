@@ -36,3 +36,17 @@ func (r *ServiceRepository) GetServicesByCategory(tenantID uint, categoryID uint
 	err := r.DB.Where("tenant_id = ? AND category_id = ?", tenantID, categoryID).Find(&services).Error
 	return services, err
 }
+
+// CreateService ساخت سرویس جدید
+func (r *ServiceRepository) CreateService(service *domain.ServiceItem) error {
+	return r.DB.Create(service).Error
+}
+
+// UpdateAllPricesByDollar آپدیت قیمت تمامی سرویس‌ها بر اساس فرمول و قیمت جدید دلار
+// فرمول: قیمت تومانی = قیمت دلاری × قیمت دلار کارفرما × (1 + درصد سود/100)
+func (r *ServiceRepository) UpdateAllPricesByDollar(tenantID uint, dollarPrice float64) error {
+	// استفاده از کوئری مستقیم دیتابیس برای آپدیت دسته‌جمعی و افزایش سرعت
+	return r.DB.Model(&domain.ServiceItem{}).
+		Where("tenant_id = ?", tenantID).
+		UpdateColumn("price_toman", gorm.Expr("price_usd * ? * (1.0 + (profit_percent / 100.0))", dollarPrice)).Error
+}

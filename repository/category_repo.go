@@ -29,3 +29,8 @@ func (r *CategoryRepository) GetCategoryByID(tenantID uint, id uint) (*domain.Ca
 	err := r.DB.Where("tenant_id = ? AND id = ?", tenantID, id).First(&cat).Error
 	return &cat, err
 }
+
+// CreateCategory ساخت دسته‌بندی جدید
+func (r *CategoryRepository) CreateCategory(category *domain.Category) error {
+	return r.DB.Create(category).Error
+}

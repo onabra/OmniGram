@@ -2,6 +2,7 @@ package telegram
 
 import (
 	"errors"
+	"regexp"
 	"strconv"
 	"strings"
 )
@@ -39,4 +40,13 @@ func ResolveChatID(input string) (string, error) {
 	}
 
 	return "", errors.New("INVALID_FORMAT")
+}
+
+// ParsePremiumEmojis تبدیل کدهای متنی به تگ ایموجی پرمیوم تلگرام
+// مثال فرمت ورودی ادمین: {emoji:5368324170671202286:⭐}
+// برای کار کردن این ایموجی‌ها، ربات باید از ParseMode = "HTML" در هنگام ارسال پیام استفاده کند
+func ParsePremiumEmojis(input string) string {
+	re := regexp.MustCompile(`\{emoji:(\d+):([^}]+)\}`)
+	// خروجی استاندارد HTML برای تلگرام
+	return re.ReplaceAllString(input, `<tg-custom-emoji emoji-id="$1">$2</tg-custom-emoji>`)
 }

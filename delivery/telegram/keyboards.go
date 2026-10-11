@@ -504,3 +504,24 @@ func (kb *KeyboardBuilder) BuildAdminSettingsMenu() tgbotapi.InlineKeyboardMarku
 		),
 	)
 }
+
+// BuildAdminServicesMenu منوی مدیریت خدمات
+func (kb *KeyboardBuilder) BuildAdminServicesMenu() tgbotapi.InlineKeyboardMarkup {
+	return tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("➕ افزودن دسته‌بندی اصلی", "admsrv_addcat"),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("➕ افزودن سرویس به دسته‌ها", "admsrv_addsrv"),
+		),
+	)
+}
+
+// BuildAdminPricesMenu منوی مدیریت قیمت‌ها
+func (kb *KeyboardBuilder) BuildAdminPricesMenu() tgbotapi.InlineKeyboardMarkup {
+	return tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("💵 تنظیم قیمت روز دلار", "admprc_setdollar"),
+		),
+	)
+}

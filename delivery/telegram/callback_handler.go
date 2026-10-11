@@ -969,12 +969,66 @@ func (h *PollingHandler) HandleCallback(tenant *domain.Tenant, update tgbotapi.U
 			}
 			return
 
+		case action == "services":
+			if isSuper { // فقط سوپر ادمین دسترسی دارد
+				markup := h.KeyboardBuilder.BuildAdminServicesMenu()
+				h.SafeBot.SafeEditText(chatID, messageID, "🔧 *مدیریت خدمات مجازی*\n\nاز این بخش می‌توانید دسته‌بندی‌ها و سرویس‌های جدید ایجاد کنید:", &markup)
+			} else {
+				h.SafeBot.SafeAnswerCallback(callback.ID, "⛔️ این بخش فقط برای توسعه‌دهنده (سوپرادمین) در دسترس است.", true)
+			}
+			return
+
+		case action == "prices":
+			if isSuper { // فقط سوپر ادمین دسترسی دارد
+				markup := h.KeyboardBuilder.BuildAdminPricesMenu()
+				msgText := fmt.Sprintf("💰 *مدیریت هوشمند قیمت‌ها*\n\n💵 قیمت فعلی دلار در سیستم: **%.0f تومان**\n\nبا تغییر قیمت دلار، قیمت تمامی سرویس‌ها طبق فرمول سود به صورت خودکار بروزرسانی می‌شود.", tenant.DollarPrice)
+				h.SafeBot.SafeEditText(chatID, messageID, msgText, &markup)
+			} else {
+				h.SafeBot.SafeAnswerCallback(callback.ID, "⛔️ دسترسی غیرمجاز.", true)
+			}
+			return
+
 		// ... سایر کیس‌ها به مرور تکمیل می‌شوند ...
 		default:
 			h.SafeBot.SafeAnswerCallback(callback.ID, "این بخش به زودی فعال می‌شود.", false)
 		}
 
 		return
+	}
+
+	// مدیریت کلیک‌های بخش خدمات و قیمت‌ها (ادمین)
+	if strings.HasPrefix(data, "admsrv_") || strings.HasPrefix(data, "admprc_") {
+		user, _ := h.UserRepo.GetUserByTelegramID(tenant.ID, chatID)
+		if !h.IsSuperAdmin(chatID) {
+			h.SafeBot.SafeAnswerCallback(callback.ID, "⛔️ دسترسی غیرمجاز.", true)
+			return
+		}
+
+		if data == "admprc_setdollar" {
+			_ = h.UserRepo.UpdateUserState(tenant.ID, user.ID, domain.StateAdminWaitDollarPrice)
+			h.SafeBot.SafeAnswerCallback(callback.ID, "لطفاً قیمت جدید دلار را ارسال کنید.", false)
+			_, _ = h.SafeBot.Bot.Send(tgbotapi.NewMessage(chatID, "💵 لطفاً **قیمت جدید دلار** را به تومان (فقط عدد) ارسال کنید:"))
+			return
+		}
+
+		if data == "admsrv_addcat" {
+			_ = h.UserRepo.UpdateUserState(tenant.ID, user.ID, domain.StateAdminWaitCategoryName)
+			h.SafeBot.SafeAnswerCallback(callback.ID, "لطفاً نام دسته‌بندی را ارسال کنید.", false)
+			_, _ = h.SafeBot.Bot.Send(tgbotapi.NewMessage(chatID, "📂 لطفاً **نام دسته‌بندی جدید** را ارسال کنید (مثل: ممبر تلگرام):"))
+			return
+		}
+
+		if data == "admsrv_addsrv" {
+			// برای سادگی در این نسخه، فقط از ادمین می‌خواهیم مستقیم اطلاعات را بفرستد
+			// (در نسخه پیشرفته‌تر می‌توان ابتدا دسته‌ها را لیست کرد)
+			_ = h.UserRepo.UpdateAdminTargets(tenant.ID, user.ID, 0, "", "") // ریسِت تارگت‌ها
+			_ = h.UserRepo.UpdateUserState(tenant.ID, user.ID, domain.StateAdminWaitServiceName)
+			h.SafeBot.SafeAnswerCallback(callback.ID, "منتظر دریافت اطلاعات...", false)
+
+			msg := tgbotapi.NewMessage(chatID, "➕ لطفاً **نام سرویس جدید** را ارسال کنید:")
+			_, _ = h.SafeBot.Bot.Send(msg)
+			return
+		}
 	}
 
 	// مدیریت کلیک‌های زیرمنوی اکشن کاربر (ادمین)

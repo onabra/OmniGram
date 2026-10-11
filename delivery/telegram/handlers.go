@@ -197,6 +197,91 @@ func (h *BotHandler) HandleMessage(tenant *domain.Tenant, chatID int64, text str
 		}
 	}
 
+	// [delivery/telegram/handlers.go]
+	// --- تنظیم قیمت دلار و آپدیت خودکار قیمت‌ها ---
+	if currentUser.State == domain.StateAdminWaitDollarPrice {
+		if text == backMainBtnText {
+			_ = h.UserRepo.UpdateUserState(tenant.ID, currentUser.ID, domain.StateNormal)
+		} else {
+			newDollar, err := strconv.ParseFloat(text, 64)
+			if err != nil || newDollar <= 0 {
+				_ = h.SafeBot.SendMessage(chatID, "❌ قیمت نامعتبر است. فقط عدد بفرستید.")
+				return
+			}
+
+			// آپدیت تنطیمات کارفرما
+			tenant.DollarPrice = newDollar
+			_ = h.AdminRepo.UpdateTenantSetting(tenant)
+
+			// اجرای فرمول برای تغییر قیمت تمام سرویس‌ها
+			_ = h.ServiceRepo.UpdateAllPricesByDollar(tenant.ID, newDollar)
+
+			_ = h.SafeBot.SendMessage(chatID, fmt.Sprintf("✅ قیمت دلار با موفقیت به **%.0f تومان** تغییر یافت و قیمت تمام سرویس‌های فروشگاه به صورت خودکار بروزرسانی شد.", newDollar))
+			_ = h.UserRepo.UpdateUserState(tenant.ID, currentUser.ID, domain.StateNormal)
+			return
+		}
+	}
+
+	// --- ساخت دسته‌بندی و سرویس جدید ---
+	if currentUser.State == domain.StateAdminWaitCategoryName {
+		if text == backMainBtnText {
+			_ = h.UserRepo.UpdateUserState(tenant.ID, currentUser.ID, domain.StateNormal)
+		} else {
+			newCat := &domain.Category{
+				TenantID: tenant.ID,
+				NameKey:  text, // فعلاً نام مستقیم به عنوان کلید استفاده می‌شود
+				IsActive: true,
+			}
+			_ = h.CategoryRepo.CreateCategory(newCat)
+
+			_ = h.SafeBot.SendMessage(chatID, fmt.Sprintf("✅ دسته‌بندی «%s» با موفقیت ساخته شد.", text))
+			_ = h.UserRepo.UpdateUserState(tenant.ID, currentUser.ID, domain.StateNormal)
+			return
+		}
+	}
+
+	if currentUser.State == domain.StateAdminWaitServiceName {
+		if text == backMainBtnText {
+			_ = h.UserRepo.UpdateUserState(tenant.ID, currentUser.ID, domain.StateNormal)
+		} else {
+			_ = h.UserRepo.UpdateAdminTargets(tenant.ID, currentUser.ID, 0, text, "") // ذخیره موقت نام در Setting
+			_ = h.UserRepo.UpdateUserState(tenant.ID, currentUser.ID, domain.StateAdminWaitServicePriceUSD)
+
+			_ = h.SafeBot.SendMessage(chatID, "✅ نام ثبت شد.\n\n💵 حالا لطفاً **قیمت پایه دلاری (USD)** این سرویس را ارسال کنید (مثلاً: 0.5):")
+			return
+		}
+	}
+
+	if currentUser.State == domain.StateAdminWaitServicePriceUSD {
+		if text == backMainBtnText {
+			_ = h.UserRepo.UpdateUserState(tenant.ID, currentUser.ID, domain.StateNormal)
+		} else {
+			priceUSD, err := strconv.ParseFloat(text, 64)
+			if err != nil || priceUSD <= 0 {
+				_ = h.SafeBot.SendMessage(chatID, "❌ قیمت دلاری نامعتبر است.")
+				return
+			}
+
+			// محاسبه قیمت تومانی فعلی بر اساس دلار ثبت شده سیستم و فرضِ سود 20 درصدی (بعداً ادمین می‌تواند ادیت کند)
+			profitPercent := 20.0
+			priceToman := priceUSD * tenant.DollarPrice * (1.0 + (profitPercent / 100.0))
+
+			newService := &domain.ServiceItem{
+				TenantID:      tenant.ID,
+				CategoryID:    1,                              // موقتاً در دسته اول ثبت می‌شود تا در نسخه پیشرفته لیست دسته‌ها نمایش داده شود
+				Title:         currentUser.AdminTargetSetting, // نامی که در مرحله قبل گرفتیم
+				PriceUSD:      priceUSD,
+				ProfitPercent: profitPercent,
+				PriceToman:    priceToman,
+			}
+			_ = h.ServiceRepo.CreateService(newService)
+
+			_ = h.SafeBot.SendMessage(chatID, fmt.Sprintf("✅ سرویس «%s» با قیمت پایه‌ی %.2f دلار (%.0f تومان) با موفقیت در سیستم ثبت شد.", currentUser.AdminTargetSetting, priceUSD, priceToman))
+			_ = h.UserRepo.UpdateUserState(tenant.ID, currentUser.ID, domain.StateNormal)
+			return
+		}
+	}
+
 	if currentUser.State == domain.StateAdminWaitSettingValue {
 		if text == backMainBtnText {
 			_ = h.UserRepo.UpdateUserState(tenant.ID, currentUser.ID, domain.StateNormal)
