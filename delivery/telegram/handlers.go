@@ -30,8 +30,8 @@ type BotHandler struct {
 	ReceiptRepo     *repository.ReceiptRepository
 	DrawRepo        *repository.DrawRepository
 	ForceJoinRepo   *repository.ForceJoinRepository
-
-	WithdrawalRepo *repository.WithdrawalRepository
+	WithdrawalRepo  *repository.WithdrawalRepository
+	AdminRepo       *repository.AdminRepository
 
 	CategoryRepo *repository.CategoryRepository
 
@@ -132,6 +132,95 @@ func (h *BotHandler) HandleMessage(tenant *domain.Tenant, chatID int64, text str
 			State:      domain.StateNormal,
 		}
 		_ = h.UserRepo.CreateUser(currentUser)
+	}
+	// --- سیستم پردازش فرم‌های پنل ادمین ---
+	if currentUser.State == domain.StateAdminWaitUserID {
+		if text == backMainBtnText {
+			_ = h.UserRepo.UpdateUserState(tenant.ID, currentUser.ID, domain.StateNormal)
+		} else {
+			targetTelegramID, err := strconv.ParseInt(text, 10, 64)
+			if err != nil {
+				_ = h.SafeBot.SendMessage(chatID, "❌ آیدی تلگرام نامعتبر است. فقط عدد ارسال کنید:")
+				return
+			}
+			targetUser, err := h.UserRepo.GetUserByTelegramID(tenant.ID, targetTelegramID)
+			if err != nil || targetUser == nil {
+				_ = h.SafeBot.SendMessage(chatID, "❌ کاربری با این آیدی در دیتابیس ربات یافت نشد.")
+				_ = h.UserRepo.UpdateUserState(tenant.ID, currentUser.ID, domain.StateNormal)
+				return
+			}
+
+			msgText := fmt.Sprintf("👤 *مدیریت کاربر*\n\nنام: %s\nآیدی تلگرام: `%d`\n\nموجودی تومان: %.0f\nموجودی امتیاز: %.0f\nموجودی استارز: %.0f\n\nعملیات مورد نظر را انتخاب کنید:",
+				targetUser.FirstName, targetUser.TelegramID, targetUser.TomanBalance, targetUser.PointBalance, targetUser.StarsBalance)
+
+			markup := h.KeyboardBuilder.BuildAdminUserActionMenu(targetUser.ID)
+			msg := tgbotapi.NewMessage(chatID, msgText)
+			msg.ParseMode = "Markdown"
+			msg.ReplyMarkup = markup
+			_, _ = h.SafeBot.Bot.Send(msg)
+
+			_ = h.UserRepo.UpdateUserState(tenant.ID, currentUser.ID, domain.StateNormal)
+			return
+		}
+	}
+
+	if currentUser.State == domain.StateAdminWaitBalanceAmount {
+		if text == backMainBtnText {
+			_ = h.UserRepo.UpdateUserState(tenant.ID, currentUser.ID, domain.StateNormal)
+		} else {
+			amount, err := strconv.ParseFloat(text, 64)
+			if err != nil || amount <= 0 {
+				_ = h.SafeBot.SendMessage(chatID, "❌ مبلغ نامعتبر است.")
+				return
+			}
+
+			var addToman, addPoint float64
+			actionWord := "اضافه شد"
+
+			switch currentUser.AdminTargetAction {
+			case "add_toman":
+				addToman = amount
+			case "sub_toman":
+				addToman = -amount
+				actionWord = "کسر شد"
+			case "add_point":
+				addPoint = amount
+			case "sub_point":
+				addPoint = -amount
+				actionWord = "کسر شد"
+			}
+
+			_ = h.UserRepo.AddBalances(tenant.ID, currentUser.AdminTargetUserID, addToman, addPoint, 0)
+			_ = h.SafeBot.SendMessage(chatID, fmt.Sprintf("✅ عملیات موفق. مقدار %.0f با موفقیت %s.", amount, actionWord))
+			_ = h.UserRepo.UpdateUserState(tenant.ID, currentUser.ID, domain.StateNormal)
+			return
+		}
+	}
+
+	if currentUser.State == domain.StateAdminWaitSettingValue {
+		if text == backMainBtnText {
+			_ = h.UserRepo.UpdateUserState(tenant.ID, currentUser.ID, domain.StateNormal)
+		} else {
+			val, err := strconv.ParseFloat(text, 64)
+			if err != nil || val < 0 {
+				_ = h.SafeBot.SendMessage(chatID, "❌ مقدار نامعتبر است.")
+				return
+			}
+
+			switch currentUser.AdminTargetSetting {
+			case "cancelfee":
+				tenant.CancelFeePercent = val
+			case "transferfee":
+				tenant.TransferFeePercent = val
+			case "inactivebonus":
+				tenant.InactiveBonusAmount = val
+			}
+
+			_ = h.AdminRepo.UpdateTenantSetting(tenant)
+			_ = h.SafeBot.SendMessage(chatID, fmt.Sprintf("✅ تنظیمات با موفقیت به مقدار %.2f تغییر یافت.", val))
+			_ = h.UserRepo.UpdateUserState(tenant.ID, currentUser.ID, domain.StateNormal)
+			return
+		}
 	}
 
 	if currentUser.State == domain.StateWaitSponsorLink {

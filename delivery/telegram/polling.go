@@ -33,8 +33,9 @@ type PollingHandler struct {
 	DrawRepo        *repository.DrawRepository
 	CategoryRepo    *repository.CategoryRepository
 	ForceJoinRepo   *repository.ForceJoinRepository
+	WithdrawalRepo  *repository.WithdrawalRepository
 
-	WithdrawalRepo *repository.WithdrawalRepository
+	AdminRepo *repository.AdminRepository
 
 	SuperAdminIDs []int64
 	AdminIDs      []int64
@@ -127,6 +128,7 @@ func (h *PollingHandler) processUpdateWithRecovery(update tgbotapi.Update) {
 			ReceiptRepo:     h.ReceiptRepo,
 			ForceJoinRepo:   h.ForceJoinRepo,
 			WithdrawalRepo:  h.WithdrawalRepo,
+			AdminRepo:       h.AdminRepo,
 			DrawRepo:        h.DrawRepo,     // تزریق شده از بلوک‌های تکراری
 			CategoryRepo:    h.CategoryRepo, // تزریق شده از بلوک‌های تکراری
 		}

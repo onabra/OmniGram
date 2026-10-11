@@ -17,8 +17,9 @@ type UserRepository interface {
 	UpdateDrawTickets(tenantID uint, userID uint, tickets int) error
 	UpdateUserTaskID(tenantID uint, userID uint, taskID uint) error
 	UpdateUserOrderID(tenantID uint, userID uint, orderID uint) error
-
 	UpdateWithdrawDraft(tenantID uint, userID uint, currency string, amount float64) error
+
+	UpdateAdminTargets(tenantID uint, adminID uint, targetUserID uint, setting string, action string) error
 }
 
 type userRepository struct {
@@ -112,5 +113,16 @@ func (r *userRepository) UpdateWithdrawDraft(tenantID uint, userID uint, currenc
 		Updates(map[string]interface{}{
 			"current_withdraw_currency": currency,
 			"current_withdraw_amount":   amount,
+		}).Error
+}
+
+// UpdateAdminTargets ذخیره اطلاعات کاربری که ادمین قصد ویرایش آن را دارد
+func (r *userRepository) UpdateAdminTargets(tenantID uint, adminID uint, targetUserID uint, setting string, action string) error {
+	return r.db.Model(&domain.User{}).
+		Where("tenant_id = ? AND id = ?", tenantID, adminID).
+		Updates(map[string]interface{}{
+			"admin_target_user_id": targetUserID,
+			"admin_target_setting": setting,
+			"admin_target_action":  action,
 		}).Error
 }

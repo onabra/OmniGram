@@ -32,6 +32,10 @@ const (
 	StateWaitTrackingCode UserState = "WAIT_TRACKING_CODE"  // در انتظار کد رهگیری سفارش
 	StateWaitNewOrderLink UserState = "WAIT_NEW_ORDER_LINK" // در انتظار لینک جدید برای ویرایش سفارش
 
+	StateAdminWaitUserID        UserState = "ADMIN_WAIT_USER_ID"        // ادمین در انتظار ارسال آیدی عددی کاربر
+	StateAdminWaitBalanceAmount UserState = "ADMIN_WAIT_BALANCE_AMOUNT" // ادمین در انتظار ارسال مبلغ برای شارژ/کسر
+	StateAdminWaitSettingValue  UserState = "ADMIN_WAIT_SETTING_VALUE"  // ادمین در انتظار ارسال مقدار جدید برای تنظیمات
+
 )
 
 // Tenant (موجودیت اصلی برای معماری SaaS)
@@ -42,6 +46,7 @@ type Tenant struct {
 	ReportChannelID     string  // آیدی کانال‌های گزارش مربوط به همین کارفرما[cite: 1]
 	OrderChannelID      string  // آیدی کانال‌های سفارشات مربوط به همین کارفرما[cite: 1]
 	TransferFeePercent  float64 // درصد کارمزد انتقال (مثلا 5.0 برای ۵ درصد)
+	CancelFeePercent    float64 // درصد کارمزد لغو سفارش
 	InactiveBonusAmount float64 // مقدار امتیازی که اگر کاربر ۱۰ روز غیرفعال بود به معرف جدید میرسه
 	CreatedAt           time.Time
 	UpdatedAt           time.Time
@@ -104,6 +109,10 @@ type User struct {
 	Language                string  // زبان انتخابی کاربر برای نمایش متون[cite: 1]
 	CurrentWithdrawCurrency string  // ذخیره نوع ارز درخواستی برای برداشت (STARS یا GIFT)
 	CurrentWithdrawAmount   float64 // ذخیره مقدار درخواستی برای برداشت
+
+	AdminTargetUserID  uint   // آیدی کاربری که ادمین در حال ویرایش اوست
+	AdminTargetSetting string // نام تنظیمی که ادمین در حال ویرایش آن است
+	AdminTargetAction  string // نوع عملیات ادمین (مثل کسر یا افزایش)
 
 	LastActiveDate time.Time // تاریخ آخرین فعالیت برای محاسبه قانون ۱۰ روز خاموشی و تخصیص ۵۰٪ امتیاز به معرف جدید[cite: 1]
 	State          UserState `gorm:"default:'NORMAL'"` // برای جلوگیری از باز شدن چند بخش همزمان

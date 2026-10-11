@@ -895,12 +895,34 @@ func (h *PollingHandler) HandleCallback(tenant *domain.Tenant, update tgbotapi.U
 			// TODO: فراخوانی تیکت‌های پشتیبانی
 			h.SafeBot.SafeAnswerCallback(callback.ID, "در حال بارگذاری تیکت‌ها...", false)
 
+		case action == "users":
+			if isSuper {
+				_ = h.UserRepo.UpdateUserState(tenant.ID, user.ID, domain.StateAdminWaitUserID)
+				h.SafeBot.SafeAnswerCallback(callback.ID, "ارسال آیدی", false)
+				msg := tgbotapi.NewMessage(chatID, "👤 لطفاً **آیدی عددی تلگرام** کاربر مورد نظر را برای مدیریت ارسال کنید:")
+				msg.ParseMode = "Markdown"
+				_, _ = h.SafeBot.Bot.Send(msg)
+			}
+			return
+
 		case action == "stats":
 			if isSuper {
-				// TODO: واکشی آمار و ویرایش پیام
-				h.SafeBot.SafeAnswerCallback(callback.ID, "آمار به زودی لود می‌شود...", false)
+				stats, _ := h.AdminRepo.GetStats(tenant.ID)
+				h.SafeBot.SafeAnswerCallback(callback.ID, "درحال محاسبه...", false)
+				msgText := fmt.Sprintf("📊 *آمار کلی سیستم (زنده)*\n\n👥 کل کاربران: %d\n🟢 کاربران فعال (۱۰ روز اخیر): %d\n🛒 کل سفارشات: %d\n\n💰 مجموع درآمد خالص (تومان): %.0f\n🎁 موجودی در گردش امتیازات: %.0f\n⭐ موجودی در گردش استارز: %.0f",
+					stats.TotalUsers, stats.ActiveUsers, stats.TotalOrders, stats.TotalRevenue, stats.TotalPoints, stats.TotalStars)
+				h.SafeBot.SafeEditText(chatID, messageID, msgText, nil)
 			}
+			return
 
+		case action == "settings":
+			if isSuper {
+				markup := h.KeyboardBuilder.BuildAdminSettingsMenu()
+				msgText := fmt.Sprintf("⚙️ *تنظیمات مالی سیستم*\n\nدرصد کارمزد لغو: %.1f%%\nدرصد کارمزد انتقال گروه: %.1f%%\nپاداش بازگشت غیرفعال: %.0f\n\nجهت ویرایش روی گزینه مورد نظر کلیک کنید:",
+					tenant.CancelFeePercent, tenant.TransferFeePercent, tenant.InactiveBonusAmount)
+				h.SafeBot.SafeEditText(chatID, messageID, msgText, &markup)
+			}
+			return
 		case strings.HasPrefix(action, "withdraw_"):
 			parts := strings.Split(action, "_")
 			if len(parts) != 3 {
@@ -952,6 +974,55 @@ func (h *PollingHandler) HandleCallback(tenant *domain.Tenant, update tgbotapi.U
 			h.SafeBot.SafeAnswerCallback(callback.ID, "این بخش به زودی فعال می‌شود.", false)
 		}
 
+		return
+	}
+
+	// مدیریت کلیک‌های زیرمنوی اکشن کاربر (ادمین)
+	if strings.HasPrefix(data, "admuser_") {
+		parts := strings.Split(data, "_")
+		if len(parts) != 3 {
+			return
+		}
+		admAction := parts[1] // addtoman, subtoman, addpoint, subpoint, refs
+		targetID, _ := strconv.Atoi(parts[2])
+
+		user, _ := h.UserRepo.GetUserByTelegramID(tenant.ID, chatID)
+		if !h.IsSuperAdmin(chatID) && !h.IsAdmin(chatID) {
+			return
+		}
+
+		if admAction == "refs" {
+			stats, _ := h.ReferralRepo.GetReferralStats(tenant.ID, uint(targetID))
+			h.SafeBot.SafeAnswerCallback(callback.ID, "آمار رفرال کاربر استخراج شد", false)
+			msg := tgbotapi.NewMessage(chatID, fmt.Sprintf("📊 *آمار رفرال این کاربر*\n\nلیگ: %d\nقرعه‌کشی: %d\nامتیاز: %d\nکیف‌پول: %d\nغیرفعال‌ها: %d",
+				stats.LeagueTotal, stats.DrawTotal, stats.PointTotal, stats.WalletTotal, stats.InactiveUsers))
+			msg.ParseMode = "Markdown"
+			_, _ = h.SafeBot.Bot.Send(msg)
+			return
+		}
+
+		// برای تراکنش‌ها
+		_ = h.UserRepo.UpdateAdminTargets(tenant.ID, user.ID, uint(targetID), "", admAction)
+		_ = h.UserRepo.UpdateUserState(tenant.ID, user.ID, domain.StateAdminWaitBalanceAmount)
+
+		h.SafeBot.SafeAnswerCallback(callback.ID, "لطفاً مبلغ را ارسال کنید.", false)
+		_, _ = h.SafeBot.Bot.Send(tgbotapi.NewMessage(chatID, "💰 لطفاً مبلغ مورد نظر برای شارژ/کسر را به صورت **عدد** ارسال کنید:"))
+		return
+	}
+
+	// مدیریت کلیک‌های تنظیمات سیستمی (ادمین)
+	if strings.HasPrefix(data, "admset_") {
+		settingType := strings.TrimPrefix(data, "admset_")
+		user, _ := h.UserRepo.GetUserByTelegramID(tenant.ID, chatID)
+		if !h.IsSuperAdmin(chatID) {
+			return
+		}
+
+		_ = h.UserRepo.UpdateAdminTargets(tenant.ID, user.ID, 0, settingType, "")
+		_ = h.UserRepo.UpdateUserState(tenant.ID, user.ID, domain.StateAdminWaitSettingValue)
+
+		h.SafeBot.SafeAnswerCallback(callback.ID, "لطفاً مقدار جدید را ارسال کنید.", false)
+		_, _ = h.SafeBot.Bot.Send(tgbotapi.NewMessage(chatID, "⚙️ لطفاً مقدار جدید (عدد یا درصد) را پیام کنید:"))
 		return
 	}
 

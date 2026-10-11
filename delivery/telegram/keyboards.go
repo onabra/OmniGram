@@ -253,6 +253,7 @@ func (kb *KeyboardBuilder) BuildAdminInlineMenu(isSuperAdmin bool) tgbotapi.Inli
 		// مدیریت محتوای داینامیک
 		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("🔤 متون و دکمه‌ها", "admin_texts"),
+			tgbotapi.NewInlineKeyboardButtonData("⚙️ تنظیمات مالی", "admin_settings"),
 		))
 	}
 
@@ -467,6 +468,39 @@ func (kb *KeyboardBuilder) BuildAdminWithdrawMenu(wID uint) tgbotapi.InlineKeybo
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("✅ تأیید واریز", "admin_withdraw_approve_"+idStr),
 			tgbotapi.NewInlineKeyboardButtonData("❌ رد درخواست", "admin_withdraw_reject_"+idStr),
+		),
+	)
+}
+
+// BuildAdminUserActionMenu منوی عملیات دستی ادمین روی یک کاربر خاص
+func (kb *KeyboardBuilder) BuildAdminUserActionMenu(userID uint) tgbotapi.InlineKeyboardMarkup {
+	idStr := fmt.Sprintf("%d", userID)
+	return tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("➕ افزایش تومان", "admuser_addtoman_"+idStr),
+			tgbotapi.NewInlineKeyboardButtonData("➖ کسر تومان", "admuser_subtoman_"+idStr),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("➕ افزایش امتیاز", "admuser_addpoint_"+idStr),
+			tgbotapi.NewInlineKeyboardButtonData("➖ کسر امتیاز", "admuser_subpoint_"+idStr),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("📊 نمایش رفرال‌های کاربر", "admuser_refs_"+idStr),
+		),
+	)
+}
+
+// BuildAdminSettingsMenu منوی تنظیمات متغیرهای عددی سیستم
+func (kb *KeyboardBuilder) BuildAdminSettingsMenu() tgbotapi.InlineKeyboardMarkup {
+	return tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("⚙️ کارمزد لغو سفارش", "admset_cancelfee"),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("⚙️ کارمزد انتقال بین کاربران", "admset_transferfee"),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("⚙️ پاداش دعوت از غیرفعال‌ها", "admset_inactivebonus"),
 		),
 	)
 }

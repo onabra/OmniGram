@@ -1,4 +1,3 @@
-// [delivery/telegram/utils.go]
 package telegram
 
 import (

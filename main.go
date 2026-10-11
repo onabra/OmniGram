@@ -70,8 +70,8 @@ func main() {
 	categoryRepo := &repository.CategoryRepository{DB: db}
 	drawRepo := &repository.DrawRepository{DB: db}
 	forceJoinRepo := &repository.ForceJoinRepository{DB: db}
-
-	withdrawalRepo := &repository.WithdrawalRepository{DB: db} // اضافه شد
+	withdrawalRepo := &repository.WithdrawalRepository{DB: db}
+	adminRepo := &repository.AdminRepository{DB: db}
 
 	// ۴. مقداردهی ماژول کیبوردساز داینامیک
 	keyboardBuilder := &telegram.KeyboardBuilder{
@@ -107,6 +107,7 @@ func main() {
 		ForceJoinRepo: forceJoinRepo,
 
 		WithdrawalRepo: withdrawalRepo,
+		AdminRepo:      adminRepo,
 
 		CategoryRepo: categoryRepo,
 	}
