@@ -14,7 +14,7 @@ type KeyboardBuilder struct {
 }
 
 // BuildMainMenu ساخت منوی اصلی بر اساس چیدمان درخواستی و بدون هاردکد[cite: 4]
-func (kb *KeyboardBuilder) BuildMainMenu(tenantID uint, lang string) (tgbotapi.ReplyKeyboardMarkup, error) {
+func (kb *KeyboardBuilder) BuildMainMenu(tenantID uint, lang string, isAdmin bool) (tgbotapi.ReplyKeyboardMarkup, error) {
 
 	getText := func(key, fallback string) string {
 		text, err := kb.TranslationRepo.GetText(tenantID, lang, key)
@@ -46,6 +46,7 @@ func (kb *KeyboardBuilder) BuildMainMenu(tenantID uint, lang string) (tgbotapi.R
 	btnReferral := getText("btn_referral", "زیرمجموعه‌گیری")
 	btnFreeGift := getText("btn_free_gift", "هدیه رایگان")
 	btnRefLeague := getText("btn_ref_league", "لیگ")
+	btnAdmin := getText("btn_admin_panel", "⚙️ پنل مدیریت")
 
 	// ساختار کیبورد ریپلای با چیدمان دقیق
 	//keyboard := tgbotapi.NewReplyKeyboard(
@@ -81,6 +82,12 @@ func (kb *KeyboardBuilder) BuildMainMenu(tenantID uint, lang string) (tgbotapi.R
 		tgbotapi.NewKeyboardButtonRow(tgbotapi.NewKeyboardButton(btnTask), tgbotapi.NewKeyboardButton(btnReferral)),
 		tgbotapi.NewKeyboardButtonRow(tgbotapi.NewKeyboardButton(btnFreeGift), tgbotapi.NewKeyboardButton(btnRefLeague)),
 	)
+
+	if isAdmin {
+		keyboard.Keyboard = append([][]tgbotapi.KeyboardButton{
+			tgbotapi.NewKeyboardButtonRow(tgbotapi.NewKeyboardButton(btnAdmin)),
+		}, keyboard.Keyboard...)
+	}
 
 	keyboard.ResizeKeyboard = true
 	return keyboard, nil

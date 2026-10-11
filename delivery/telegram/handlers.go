@@ -70,7 +70,8 @@ func (h *BotHandler) HandleStart(tenant *domain.Tenant, chatID int64, lang strin
 	}
 
 	// ساخت منوی اصلی
-	mainMenu, err := h.KeyboardBuilder.BuildMainMenu(tenant.ID, lang)
+	isAdmin := h.IsSuperAdmin(chatID) || h.IsAdmin(chatID)
+	mainMenu, err := h.KeyboardBuilder.BuildMainMenu(tenant.ID, lang, isAdmin)
 	if err != nil {
 		log.Println("Error building menu:", err)
 	}
@@ -123,6 +124,7 @@ func (h *BotHandler) HandleMessage(tenant *domain.Tenant, chatID int64, text str
 
 	btnReferral := getText("btn_referral", "🔗 زیرمجموعه‌گیری")
 	btnFreeGift := getText("btn_free_gift", "🎁 هدیه رایگان")
+	btnAdmin := getText("btn_admin_panel", "⚙️ پنل مدیریت")
 
 	// پیدا کردن کاربر از دیتابیس برای عملیاتی که نیاز به اطلاعات کاربر دارند
 	// پیدا کردن کاربر از دیتابیس
@@ -793,6 +795,17 @@ func (h *BotHandler) HandleMessage(tenant *domain.Tenant, chatID int64, text str
 		msg.ReplyMarkup = accMenu // استفاده از کیبورد حساب کاربری برای داشتن دکمه بازگشت
 		_, _ = h.SafeBot.Bot.Send(msg)
 
+	case "/admin", btnAdmin:
+		if h.IsSuperAdmin(chatID) || h.IsAdmin(chatID) {
+			isSuper := h.IsSuperAdmin(chatID)
+			markup := h.KeyboardBuilder.BuildAdminInlineMenu(isSuper)
+			msgText := "🛠 *به پنل مدیریت سیستم خوش آمدید.*\n\nلطفاً بخش مورد نظر خود را انتخاب کنید:"
+			msg := tgbotapi.NewMessage(chatID, msgText)
+			msg.ParseMode = "Markdown"
+			msg.ReplyMarkup = markup
+			_, _ = h.SafeBot.Bot.Send(msg)
+		}
+
 	//case btnRefLeague:
 	//	// واکشی قرعه‌کشی‌های فعال
 	//	draws, err := h.DrawRepo.GetActiveDraws(tenant.ID)
@@ -915,7 +928,8 @@ func (h *BotHandler) HandleMessage(tenant *domain.Tenant, chatID int64, text str
 	case backMainBtnText:
 		// بازگشت به منوی اصلی
 		msgText := getText("msg_main_menu", "به منوی اصلی برگشتیم:")
-		mainMenu, _ := h.KeyboardBuilder.BuildMainMenu(tenant.ID, lang)
+		isAdmin := h.IsSuperAdmin(chatID) || h.IsAdmin(chatID)
+		mainMenu, _ := h.KeyboardBuilder.BuildMainMenu(tenant.ID, lang, isAdmin)
 
 		msg := tgbotapi.NewMessage(chatID, msgText)
 		msg.ReplyMarkup = mainMenu
