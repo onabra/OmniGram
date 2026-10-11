@@ -154,6 +154,9 @@ type GameSession struct {
 	Status      string // "WAITING", "IN_PROGRESS", "FINISHED"
 	CreatorRoll *int
 	JoinerRoll  *int
+
+	CreatedAt time.Time // اضافه شد: برای محاسبه تعداد بازی‌ های امروز
+	UpdatedAt time.Time
 }
 
 // VerifiedCard (سیستم KYC و احراز هویت)

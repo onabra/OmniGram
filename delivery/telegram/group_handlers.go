@@ -2,6 +2,7 @@ package telegram
 
 import (
 	"OmniGram/domain"
+	"OmniGram/repository"
 	"fmt"
 	"strconv"
 	"strings"
@@ -144,6 +145,46 @@ func (h *PollingHandler) HandleGroupMessage(tenant *domain.Tenant, message *tgbo
 
 			msg := tgbotapi.NewMessage(message.Chat.ID, msgText)
 			msg.ReplyMarkup = joinMenu
+			_, _ = h.SafeBot.Bot.Send(msg)
+			return
+		}
+
+		// ۵. نمایش آمار کامل کاربر در بازی‌های گروهی
+		if text == "اعتبارم" {
+			user, err := h.UserRepo.GetUserByTelegramID(tenant.ID, message.From.ID)
+			if err != nil || user == nil {
+				msg := tgbotapi.NewMessage(message.Chat.ID, "❌ ابتدا ربات را در پی‌وی استارت بزنید.")
+				msg.ReplyToMessageID = message.MessageID
+				_, _ = h.SafeBot.Bot.Send(msg)
+				return
+			}
+
+			feePercent := tenant.TransferFeePercent
+			if feePercent <= 0 {
+				feePercent = 5.0
+			}
+
+			// واکشی آمار از دیتابیس
+			stats, _ := h.GameRepo.GetUserGameStats(tenant.ID, user.ID, feePercent)
+			if stats == nil {
+				stats = &repository.GameStats{} // برای جلوگیری از کرش اگر آماری نبود
+			}
+
+			msgText := fmt.Sprintf("📊 *آمار و اعتبار شما*\n\n"+
+				"🎲 بازی‌های برگزار شده در امروز: %d\n"+
+				"🎮 بازی‌های برگزار شده: %d\n"+
+				"🏆 مجموع بردها: %d\n"+
+				"💔 مجموع باخت‌ها: %d\n"+
+				"📈 سود امتیازی: %.0f\n"+
+				"📉 ضرر امتیازی: %.0f\n\n"+
+				"🎁 موجودی امتیازی: %.0f\n"+
+				"💳 موجودی تومانی: %.0f",
+				stats.TodayGames, stats.TotalGames, stats.TotalWins, stats.TotalLosses,
+				stats.Profit, stats.Loss, user.PointBalance, user.TomanBalance)
+
+			msg := tgbotapi.NewMessage(message.Chat.ID, msgText)
+			msg.ParseMode = "Markdown"
+			msg.ReplyToMessageID = message.MessageID
 			_, _ = h.SafeBot.Bot.Send(msg)
 			return
 		}
