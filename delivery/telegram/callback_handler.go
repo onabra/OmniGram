@@ -3,6 +3,7 @@ package telegram
 import (
 	"OmniGram/domain"
 	"fmt"
+	"math/rand"
 	"strconv"
 	"strings"
 	"time"
@@ -1048,6 +1049,14 @@ func (h *PollingHandler) HandleCallback(tenant *domain.Tenant, update tgbotapi.U
 			}
 			return
 
+		case action == "draws":
+			if isSuper || isAdmin {
+				draws, _ := h.DrawRepo.GetActiveDraws(tenant.ID)
+				markup := h.KeyboardBuilder.BuildAdminDrawListMenu(draws)
+				h.SafeBot.SafeEditText(chatID, messageID, "🎰 *مدیریت قرعه‌کشی‌ها*\n\nلیست مسابقات فعال جهت پایان و قرعه‌کشی:", &markup)
+			}
+			return
+
 		case action == "broadcast":
 			if isSuper {
 				_ = h.UserRepo.UpdateUserState(tenant.ID, user.ID, domain.StateAdminWaitBroadcastMsg)
@@ -1390,6 +1399,134 @@ func (h *PollingHandler) HandleCallback(tenant *domain.Tenant, update tgbotapi.U
 			h.SafeBot.SafeEditText(chatID, messageID, "✅ تیکت بسته شد.\n\n🎫 *تیکت‌های در انتظار پاسخ:*", &markup)
 		}
 		return
+	}
+
+	// مدیریت قرعه‌کشی‌ها (ادمین)
+	if strings.HasPrefix(data, "admdraw_") {
+		if !botHandlerTemp.IsSuperAdmin(chatID) && !botHandlerTemp.IsAdmin(chatID) {
+			return
+		}
+		parts := strings.Split(data, "_")
+		if len(parts) < 3 {
+			return
+		}
+		action := parts[1] // view, roll
+		drawID, _ := strconv.Atoi(parts[2])
+
+		draw, err := h.DrawRepo.GetDrawByID(tenant.ID, uint(drawID))
+		if err != nil || draw.Status != "ACTIVE" {
+			h.SafeBot.SafeAnswerCallback(callback.ID, "❌ مسابقه یافت نشد یا قبلاً تمام شده است.", true)
+			return
+		}
+
+		if action == "view" {
+			totalEntries, _ := h.DrawRepo.GetTotalEntries(tenant.ID, draw.ID)
+			msgText := fmt.Sprintf("🎰 *جزئیات مسابقه*\n\n📌 عنوان: %s\n👥 ظرفیت فعلی: %d / %d\n🎁 جایزه هر برنده: %.0f %s\n🏆 تعداد برنده‌ها: %d نفر\n\nبرای انتخاب سیستمی برندگان روی دکمه زیر کلیک کنید:",
+				draw.Title, totalEntries, draw.MaxParticipants, draw.RewardPerWinner, draw.RewardType, draw.WinnersCount)
+
+			markup := h.KeyboardBuilder.BuildAdminDrawActionMenu(draw.ID)
+			h.SafeBot.SafeEditText(chatID, messageID, msgText, &markup)
+			return
+		}
+
+		if action == "roll" {
+			entries, _ := h.DrawRepo.GetDrawEntries(tenant.ID, draw.ID)
+			totalEntries, _ := h.DrawRepo.GetTotalEntries(tenant.ID, draw.ID)
+
+			if len(entries) == 0 {
+				h.SafeBot.SafeAnswerCallback(callback.ID, "❌ هیچکس در این قرعه‌کشی شرکت نکرده است!", true)
+				return
+			}
+
+			// ساخت استخر شانس‌ها (هر کاربر به تعداد Entries در استخر تکرار می‌شود تا شانسش بیشتر باشد)
+			var pool []uint
+			for _, entry := range entries {
+				for i := 0; i < entry.Entries; i++ {
+					pool = append(pool, entry.UserID)
+				}
+			}
+
+			// بر هم زدن استخر با متد تصادفی
+			rand.Seed(time.Now().UnixNano())
+			rand.Shuffle(len(pool), func(i, j int) { pool[i], pool[j] = pool[j], pool[i] })
+
+			// استخراج برندگان (بدون تکراری شدن یک شخص)
+			var winners []uint
+			wonMap := make(map[uint]bool)
+
+			for _, uid := range pool {
+				if !wonMap[uid] {
+					winners = append(winners, uid)
+					wonMap[uid] = true
+				}
+				if len(winners) == draw.WinnersCount {
+					break
+				}
+			}
+
+			// واریز پاداش به کیف پول برنده‌ها و ساخت پیام نتایج
+			var resultMsg strings.Builder
+			resultMsg.WriteString(fmt.Sprintf("🎰 *نتیجه مسابقه: %s*\n\n━━━━━━━━━━━━\n\n👥 تعداد شرکت‌کنندگان: %d نفر\n\n🎁 *برندگان:*\n\n", draw.Title, totalEntries))
+
+			for i, winnerID := range winners {
+				wUser, _ := h.UserRepo.GetUserByID(tenant.ID, winnerID)
+				if wUser == nil {
+					continue
+				}
+
+				// واریز بر اساس نوع جایزه
+				var addToman, addPoint, addStars float64
+				switch draw.RewardType {
+				case "STARS":
+					addStars = draw.RewardPerWinner
+				case "POINT":
+					addPoint = draw.RewardPerWinner
+				case "TOMAN":
+					addToman = draw.RewardPerWinner
+				}
+				_ = h.UserRepo.AddBalances(tenant.ID, wUser.ID, addToman, addPoint, addStars)
+
+				// اطلاع رسانی پی‌وی به برنده
+				_ = h.SafeBot.SendMessage(wUser.TelegramID, fmt.Sprintf("🎉 *تبریک!*\n\nشما در قرعه‌کشی «%s» برنده شدید و مبلغ %.0f %s به کیف پول شما واریز شد.", draw.Title, draw.RewardPerWinner, draw.RewardType))
+
+				// اضافه کردن به لیست
+				emoji := "🏅"
+				if i == 0 {
+					emoji = "🥇"
+				} else if i == 1 {
+					emoji = "🥈"
+				} else if i == 2 {
+					emoji = "🥉"
+				}
+
+				mention := fmt.Sprintf("[%s](tg://user?id=%d)", wUser.FirstName, wUser.TelegramID)
+				resultMsg.WriteString(fmt.Sprintf("%s %s — %.0f %s\n", emoji, mention, draw.RewardPerWinner, draw.RewardType))
+			}
+
+			resultMsg.WriteString("\n🎉 تبریک به برندگان!\n━━━━━━━━━━━━")
+
+			// تغییر وضعیت قرعه‌کشی
+			draw.Status = "COMPLETED"
+			_ = h.DrawRepo.UpdateDraw(draw)
+
+			// ارسال پیام به کانال نتایج (اگر ثبت نشده بود به کانال گزارش یا پی‌وی ادمین)
+			targetChannel := tenant.WinnerChannelID
+			if targetChannel == "" {
+				targetChannel = tenant.ReportChannelID
+			}
+
+			if targetChannel != "" {
+				chID, _ := strconv.ParseInt(targetChannel, 10, 64)
+				msg := tgbotapi.NewMessage(chID, resultMsg.String())
+				msg.ParseMode = "Markdown"
+				_, _ = h.SafeBot.Bot.Send(msg)
+			}
+
+			// گزارش پایان به ادمین
+			h.SafeBot.SafeAnswerCallback(callback.ID, "✅ قرعه‌کشی انجام شد و پاداش‌ها واریز گردید.", false)
+			h.SafeBot.SafeEditText(chatID, messageID, "✅ قرعه‌کشی با موفقیت به پایان رسید و نتایج در کانال منتشر شد.\n\n"+resultMsg.String(), nil)
+			return
+		}
 	}
 
 }

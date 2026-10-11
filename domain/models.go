@@ -57,6 +57,7 @@ type Tenant struct {
 	IsActive            bool    // وضعیت اشتراک (فعال/منقضی)[cite: 1]
 	ReportChannelID     string  // آیدی کانال‌های گزارش مربوط به همین کارفرما[cite: 1]
 	OrderChannelID      string  // آیدی کانال‌های سفارشات مربوط به همین کارفرما[cite: 1]
+	WinnerChannelID     string  // اضافه شد: آیدی کانال مخصوص نتایج مسابقات و قرعه‌کشی‌ها
 	TransferFeePercent  float64 // درصد کارمزد انتقال (مثلا 5.0 برای ۵ درصد)
 	CancelFeePercent    float64 // درصد کارمزد لغو سفارش
 	InactiveBonusAmount float64 // مقدار امتیازی که اگر کاربر ۱۰ روز غیرفعال بود به معرف جدید میرسه

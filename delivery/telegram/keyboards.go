@@ -242,9 +242,13 @@ func (kb *KeyboardBuilder) BuildAdminInlineMenu(isSuperAdmin bool) tgbotapi.Inli
 			tgbotapi.NewInlineKeyboardButtonData("🔧 خدمات", "admin_services"),
 			tgbotapi.NewInlineKeyboardButtonData("💰 قیمت‌ها", "admin_prices"),
 		))
+		//rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+		//	tgbotapi.NewInlineKeyboardButtonData("🛑 جوین اجباری", "admin_forcejoin"),
+		//	tgbotapi.NewInlineKeyboardButtonData("🏆 لیگ", "admin_league"),
+		//))
 		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("🛑 جوین اجباری", "admin_forcejoin"),
-			tgbotapi.NewInlineKeyboardButtonData("🏆 لیگ", "admin_league"),
+			tgbotapi.NewInlineKeyboardButtonData("🏆 لیگ و قرعه‌کشی", "admin_draws"),
 		))
 		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("👤 کاربران", "admin_users"),
@@ -622,6 +626,35 @@ func (kb *KeyboardBuilder) BuildLeagueMainMenu() tgbotapi.InlineKeyboardMarkup {
 		),
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("🎰 قرعه‌کشی‌های فعال", "league_draws"),
+		),
+	)
+}
+
+// BuildAdminDrawListMenu لیست قرعه‌کشی‌ها برای ادمین
+func (kb *KeyboardBuilder) BuildAdminDrawListMenu(draws []domain.LuckyDraw) tgbotapi.InlineKeyboardMarkup {
+	var rows [][]tgbotapi.InlineKeyboardButton
+	for _, d := range draws {
+		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData(fmt.Sprintf("🎰 %s", d.Title), fmt.Sprintf("admdraw_view_%d", d.ID)),
+		))
+	}
+	if len(draws) == 0 {
+		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("✅ هیچ قرعه‌کشی فعالی وجود ندارد", "ignore"),
+		))
+	}
+	return tgbotapi.NewInlineKeyboardMarkup(rows...)
+}
+
+// BuildAdminDrawActionMenu منوی عملیات پایان قرعه‌کشی
+func (kb *KeyboardBuilder) BuildAdminDrawActionMenu(drawID uint) tgbotapi.InlineKeyboardMarkup {
+	idStr := fmt.Sprintf("%d", drawID)
+	return tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("🏁 پایان قرعه‌کشی و انتخاب برندگان", "admdraw_roll_"+idStr),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("🔙 بازگشت به لیست", "admin_draws"),
 		),
 	)
 }

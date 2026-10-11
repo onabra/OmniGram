@@ -42,3 +42,17 @@ func (r *DrawRepository) AddEntry(entry *domain.DrawEntry) error {
 	// در غیر این صورت یک رکورد جدید بساز
 	return r.DB.Create(entry).Error
 }
+
+// [repository/draw_repo.go]
+
+// UpdateDraw ذخیره وضعیت جدید قرعه‌کشی
+func (r *DrawRepository) UpdateDraw(draw *domain.LuckyDraw) error {
+	return r.DB.Save(draw).Error
+}
+
+// GetDrawEntries واکشی تمام شانس‌های ثبت شده برای یک قرعه‌کشی خاص
+func (r *DrawRepository) GetDrawEntries(tenantID uint, drawID uint) ([]domain.DrawEntry, error) {
+	var entries []domain.DrawEntry
+	err := r.DB.Where("tenant_id = ? AND lucky_draw_id = ?", tenantID, drawID).Find(&entries).Error
+	return entries, err
+}
