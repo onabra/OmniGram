@@ -760,6 +760,10 @@ func (h *PollingHandler) HandleCallback(tenant *domain.Tenant, update tgbotapi.U
 			return
 		}
 
+		user, _ := h.UserRepo.GetUserByTelegramID(tenant.ID, chatID)
+		if user == nil {
+			return
+		}
 		// بررسی بخش درخواستی
 		// بررسی بخش درخواستی
 		action := strings.TrimPrefix(data, "admin_")
@@ -999,7 +1003,7 @@ func (h *PollingHandler) HandleCallback(tenant *domain.Tenant, update tgbotapi.U
 	// مدیریت کلیک‌های بخش خدمات و قیمت‌ها (ادمین)
 	if strings.HasPrefix(data, "admsrv_") || strings.HasPrefix(data, "admprc_") {
 		user, _ := h.UserRepo.GetUserByTelegramID(tenant.ID, chatID)
-		if !h.IsSuperAdmin(chatID) {
+		if !botHandlerTemp.IsSuperAdmin(chatID) { // 👈 فیکس شد: استفاده از botHandlerTemp
 			h.SafeBot.SafeAnswerCallback(callback.ID, "⛔️ دسترسی غیرمجاز.", true)
 			return
 		}
@@ -1041,12 +1045,12 @@ func (h *PollingHandler) HandleCallback(tenant *domain.Tenant, update tgbotapi.U
 		targetID, _ := strconv.Atoi(parts[2])
 
 		user, _ := h.UserRepo.GetUserByTelegramID(tenant.ID, chatID)
-		if !h.IsSuperAdmin(chatID) && !h.IsAdmin(chatID) {
+		if !botHandlerTemp.IsSuperAdmin(chatID) && !botHandlerTemp.IsAdmin(chatID) { // 👈 فیکس شد
 			return
 		}
 
 		if admAction == "refs" {
-			stats, _ := h.ReferralRepo.GetReferralStats(tenant.ID, uint(targetID))
+			stats, _ := h.RefRepo.GetReferralStats(tenant.ID, uint(targetID)) // 👈 فیکس شد: استفاده از RefRepo
 			h.SafeBot.SafeAnswerCallback(callback.ID, "آمار رفرال کاربر استخراج شد", false)
 			msg := tgbotapi.NewMessage(chatID, fmt.Sprintf("📊 *آمار رفرال این کاربر*\n\nلیگ: %d\nقرعه‌کشی: %d\nامتیاز: %d\nکیف‌پول: %d\nغیرفعال‌ها: %d",
 				stats.LeagueTotal, stats.DrawTotal, stats.PointTotal, stats.WalletTotal, stats.InactiveUsers))
@@ -1068,7 +1072,7 @@ func (h *PollingHandler) HandleCallback(tenant *domain.Tenant, update tgbotapi.U
 	if strings.HasPrefix(data, "admset_") {
 		settingType := strings.TrimPrefix(data, "admset_")
 		user, _ := h.UserRepo.GetUserByTelegramID(tenant.ID, chatID)
-		if !h.IsSuperAdmin(chatID) {
+		if !botHandlerTemp.IsSuperAdmin(chatID) { // 👈 فیکس شد
 			return
 		}
 
