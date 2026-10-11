@@ -141,6 +141,52 @@ func (h *BotHandler) HandleMessage(tenant *domain.Tenant, chatID int64, text str
 		}
 		_ = h.UserRepo.CreateUser(currentUser)
 	}
+
+	// --- جستجو و مدیریت سفارش توسط ادمین ---
+	if currentUser.State == domain.StateAdminWaitOrderSearch {
+		if text == backMainBtnText {
+			_ = h.UserRepo.UpdateUserState(tenant.ID, currentUser.ID, domain.StateNormal)
+		} else {
+			order, err := h.OrderRepo.GetOrder(tenant.ID, text)
+			if err != nil {
+				_ = h.SafeBot.SendMessage(chatID, "❌ سفارشی با این کد رهگیری در سیستم یافت نشد. لطفاً مجدداً بررسی کنید:")
+				return
+			}
+
+			targetUser, _ := h.UserRepo.GetUserByID(tenant.ID, order.UserID)
+			username := "نامشخص"
+			if targetUser != nil {
+				username = targetUser.FirstName
+			}
+
+			statusFa := "در حال انجام"
+			if order.Status == "DRAFT" {
+				statusFa = "پیش‌نویس (پرداخت نشده)"
+			}
+			if order.Status == "COMPLETED" {
+				statusFa = "تکمیل شده"
+			}
+			if order.Status == "CANCELED" {
+				statusFa = "لغو شده"
+			}
+
+			msgText := fmt.Sprintf("🛒 *جزئیات سفارش*\n\n🔖 کد رهگیری: `%s`\n👤 کاربر: %s\n🔗 لینک ثبت شده: %s\n🔢 تعداد: %d\n💰 مبلغ: %.0f\n💳 روش پرداخت: %s\n📌 وضعیت: **%s**\n\nعملیات مورد نظر را انتخاب کنید:",
+				order.TrackingCode, username, order.TargetLink, order.Quantity, order.TotalAmount, order.PaymentMethod, statusFa)
+
+			markup := h.KeyboardBuilder.BuildAdminOrderManageMenu(order.ID)
+			msg := tgbotapi.NewMessage(chatID, msgText)
+			msg.ParseMode = "Markdown"
+			// مخفی کردن دکمه‌ها در صورت لغو بودن سفارش
+			if order.Status != "CANCELED" {
+				msg.ReplyMarkup = markup
+			}
+			_, _ = h.SafeBot.Bot.Send(msg)
+
+			_ = h.UserRepo.UpdateUserState(tenant.ID, currentUser.ID, domain.StateNormal)
+			return
+		}
+	}
+
 	// --- سیستم پردازش فرم‌های پنل ادمین ---
 	if currentUser.State == domain.StateAdminWaitUserID {
 		if text == backMainBtnText {

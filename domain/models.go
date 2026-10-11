@@ -51,6 +51,8 @@ const (
 	StateWaitConvertAmountStars UserState = "WAIT_CONVERT_AMOUNT_STARS" // انتظار مقدار استارز برای تبدیل
 	StateWaitConvertAmountToman UserState = "WAIT_CONVERT_AMOUNT_TOMAN" // انتظار مقدار امتیاز برای تبدیل به تومان
 
+	StateAdminWaitOrderSearch UserState = "ADMIN_WAIT_ORDER_SEARCH" // ادمین در انتظار ارسال کد رهگیری سفارش
+
 )
 
 // Tenant (موجودیت اصلی برای معماری SaaS)

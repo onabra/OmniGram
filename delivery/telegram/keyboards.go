@@ -682,3 +682,14 @@ func (kb *KeyboardBuilder) BuildConvertMenu() tgbotapi.InlineKeyboardMarkup {
 		),
 	)
 }
+
+// BuildAdminOrderManageMenu منوی مدیریت یک سفارش توسط ادمین
+func (kb *KeyboardBuilder) BuildAdminOrderManageMenu(orderID uint) tgbotapi.InlineKeyboardMarkup {
+	idStr := fmt.Sprintf("%d", orderID)
+	return tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("✅ تکمیل سفارش", "admord_complete_"+idStr),
+			tgbotapi.NewInlineKeyboardButtonData("❌ لغو و عودت وجه", "admord_cancel_"+idStr),
+		),
+	)
+}

@@ -917,8 +917,14 @@ func (h *PollingHandler) HandleCallback(tenant *domain.Tenant, update tgbotapi.U
 
 		switch { // فیکس شد: حذف action از جلوی switch برای استفاده از شرط‌های boolean
 		case action == "orders":
-			// TODO: فراخوانی لیست سفارشات
-			h.SafeBot.SafeAnswerCallback(callback.ID, "در حال بارگذاری سفارشات...", false)
+			if isSuper || isAdmin {
+				_ = h.UserRepo.UpdateUserState(tenant.ID, user.ID, domain.StateAdminWaitOrderSearch)
+				h.SafeBot.SafeAnswerCallback(callback.ID, "جستجوی سفارش", false)
+				msg := tgbotapi.NewMessage(chatID, "🛒 *مدیریت سفارشات*\n\nلطفاً **کد رهگیری (Tracking Code)** سفارش مورد نظر را جهت بررسی و تغییر وضعیت ارسال کنید:")
+				msg.ParseMode = "Markdown"
+				_, _ = h.SafeBot.Bot.Send(msg)
+			}
+			return
 
 		case strings.HasPrefix(action, "receipt_"):
 			parts := strings.Split(action, "_")
@@ -1562,6 +1568,62 @@ func (h *PollingHandler) HandleCallback(tenant *domain.Tenant, update tgbotapi.U
 			msg := tgbotapi.NewMessage(chatID, fmt.Sprintf("⭐ لطفاً مشخص کنید **چه تعداد استارز** می‌خواهید دریافت کنید؟ (ارسال فقط عدد)\n\n⭐ نرخ تبدیل: برای دریافت هر ۱ استارز، %.0f امتیاز کسر می‌شود.", tenant.PointToStarRate))
 			msg.ParseMode = "Markdown"
 			_, _ = h.SafeBot.Bot.Send(msg)
+		}
+		return
+	}
+
+	// مدیریت سفارشات توسط ادمین (تکمیل و لغو)
+	if strings.HasPrefix(data, "admord_") {
+		if !botHandlerTemp.IsSuperAdmin(chatID) && !botHandlerTemp.IsAdmin(chatID) {
+			return
+		}
+		parts := strings.Split(data, "_")
+		if len(parts) < 3 {
+			return
+		}
+		action := parts[1] // complete, cancel
+		orderID, _ := strconv.Atoi(parts[2])
+
+		order, err := h.OrderRepo.GetOrderByID(tenant.ID, uint(orderID))
+		if err != nil {
+			h.SafeBot.SafeAnswerCallback(callback.ID, "❌ سفارش یافت نشد.", true)
+			return
+		}
+
+		orderUser, _ := h.UserRepo.GetUserByID(tenant.ID, order.UserID)
+
+		if action == "complete" {
+			order.Status = "COMPLETED"
+			_ = h.OrderRepo.UpdateOrder(order)
+			h.SafeBot.SafeAnswerCallback(callback.ID, "✅ سفارش تکمیل شد.", false)
+			h.SafeBot.SafeEditText(chatID, messageID, fmt.Sprintf("✅ سفارش `%s` با موفقیت **تکمیل** شد.", order.TrackingCode), nil)
+
+			if orderUser != nil {
+				_ = h.SafeBot.SendMessage(orderUser.TelegramID, fmt.Sprintf("✅ سفارش شما با کد رهگیری `%s` توسط ادمین انجام و تکمیل شد.", order.TrackingCode))
+			}
+		} else if action == "cancel" {
+			if order.Status == "CANCELED" {
+				h.SafeBot.SafeAnswerCallback(callback.ID, "❌ قبلاً لغو شده است.", true)
+				return
+			}
+			order.Status = "CANCELED"
+			_ = h.OrderRepo.UpdateOrder(order)
+
+			// عودت وجه بدون کارمزد (چون لغو از سمت ادمین بوده نه کاربر)
+			if orderUser != nil {
+				if order.PaymentMethod == "WALLET_TOMAN" || order.PaymentMethod == "CARD" {
+					orderUser.TomanBalance += order.TotalAmount
+				} else if order.PaymentMethod == "WALLET_POINT" {
+					orderUser.PointBalance += order.TotalAmount
+				} else if order.PaymentMethod == "STARS" {
+					orderUser.StarsBalance += order.TotalAmount
+				}
+				_ = h.UserRepo.UpdateBalances(tenant.ID, orderUser.ID, orderUser.TomanBalance, orderUser.PointBalance, orderUser.StarsBalance)
+				_ = h.SafeBot.SendMessage(orderUser.TelegramID, fmt.Sprintf("❌ سفارش شما با کد `%s` توسط پشتیبانی لغو شد و مبلغ به کیف پول شما بازگشت داده شد.", order.TrackingCode))
+			}
+
+			h.SafeBot.SafeAnswerCallback(callback.ID, "✅ سفارش لغو و مبلغ عودت داده شد.", false)
+			h.SafeBot.SafeEditText(chatID, messageID, fmt.Sprintf("❌ سفارش `%s` لغو شد و مبلغ به کیف پول کاربر برگشت داده شد.", order.TrackingCode), nil)
 		}
 		return
 	}
