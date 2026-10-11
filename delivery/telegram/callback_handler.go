@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
@@ -571,6 +572,118 @@ func (h *PollingHandler) HandleCallback(tenant *domain.Tenant, update tgbotapi.U
 
 		successMsg := fmt.Sprintf("🎉 شما 1 شانس در قرعه‌کشی *%s* ثبت کردید.\n🎟 تیکت‌های باقی‌مانده: %d", draw.Title, user.DrawTickets)
 		h.SafeBot.SafeEditText(chatID, messageID, successMsg, nil)
+		return
+	}
+
+	// کاربر روی یکی از عملیات پیگیری سفارش کلیک کرده است
+	if strings.HasPrefix(data, "ordact_") {
+		parts := strings.Split(data, "_")
+		if len(parts) < 3 {
+			return
+		}
+		action := parts[1] // speedup, edit, refill, cancel
+		orderID, _ := strconv.Atoi(parts[2])
+
+		user, _ := h.UserRepo.GetUserByTelegramID(tenant.ID, chatID)
+		order, err := h.OrderRepo.GetOrderByID(tenant.ID, uint(orderID))
+		if err != nil || user == nil || order.UserID != user.ID {
+			h.SafeBot.SafeAnswerCallback(callback.ID, "سفارش یافت نشد.", true)
+			return
+		}
+
+		if order.Status == "CANCELED" {
+			h.SafeBot.SafeAnswerCallback(callback.ID, "این سفارش قبلاً لغو شده است.", true)
+			return
+		}
+
+		switch action {
+		case "speedup":
+			if order.SpeedUpRequested {
+				h.SafeBot.SafeAnswerCallback(callback.ID, "❌ درخواست سرعت‌دهی برای این سفارش قبلاً ثبت شده است.", true)
+				return
+			}
+			if user.PointBalance < 2.0 {
+				h.SafeBot.SafeAnswerCallback(callback.ID, "❌ برای سرعت‌دهی به سفارش نیاز به ۲ امتیاز دارید.", true)
+				return
+			}
+
+			// کسر ۲ امتیاز و ثبت درخواست
+			user.PointBalance -= 2.0
+			_ = h.UserRepo.UpdateBalances(tenant.ID, user.ID, user.TomanBalance, user.PointBalance, user.StarsBalance)
+			order.SpeedUpRequested = true
+			_ = h.OrderRepo.UpdateOrder(order)
+
+			h.SafeBot.SafeAnswerCallback(callback.ID, "✅ ۲ امتیاز کسر و درخواست سرعت‌دهی ثبت شد.", true)
+
+			// ارسال نوتیفیکیشن به ادمین
+			if tenant.ReportChannelID != "" {
+				chID, _ := strconv.ParseInt(tenant.ReportChannelID, 10, 64)
+				msgText := fmt.Sprintf("⚡️ #سرعت_دادن\n\nکاربر [%s](tg://user?id=%d) درخواست سرعت‌دهی برای سفارش `%s` را ثبت کرد.", user.FirstName, user.TelegramID, order.TrackingCode)
+				_ = h.SafeBot.SendMessage(chID, msgText)
+			}
+
+		case "refill":
+			if order.HasRefill {
+				h.SafeBot.SafeAnswerCallback(callback.ID, "❌ درخواست ریفیل این سفارش قبلاً در صف ادمین قرار گرفته است.", true)
+				return
+			}
+			order.HasRefill = true
+			_ = h.OrderRepo.UpdateOrder(order)
+			h.SafeBot.SafeAnswerCallback(callback.ID, "✅ درخواست ریفیل و جبران ریزش برای ادمین ارسال شد.", true)
+
+			if tenant.ReportChannelID != "" {
+				chID, _ := strconv.ParseInt(tenant.ReportChannelID, 10, 64)
+				msgText := fmt.Sprintf("♻️ #درخواست_ریفیل\n\nسفارش `%s` دچار ریزش شده و نیاز به جبران دارد.", order.TrackingCode)
+				_ = h.SafeBot.SendMessage(chID, msgText)
+			}
+
+		case "edit":
+			// بررسی محدودیت ۳۰ دقیقه‌ای
+			if time.Since(order.CreatedAt).Minutes() > 30 {
+				h.SafeBot.SafeAnswerCallback(callback.ID, "❌ زمان مجاز برای ویرایش لینک (۳۰ دقیقه) به پایان رسیده است.", true)
+				return
+			}
+			_ = h.UserRepo.UpdateUserOrderID(tenant.ID, user.ID, order.ID)
+			_ = h.UserRepo.UpdateUserState(tenant.ID, user.ID, domain.StateWaitNewOrderLink)
+
+			h.SafeBot.SafeAnswerCallback(callback.ID, "✏️ لطفاً لینک جدید را پیام کنید.", false)
+			msg := tgbotapi.NewMessage(chatID, "✏️ لطفاً **لینک جدید** خود را برای این سفارش ارسال کنید:\n*(شما هنوز زمان مجاز برای ویرایش را دارید)*")
+			msg.ParseMode = "Markdown"
+			_, _ = h.SafeBot.Bot.Send(msg)
+
+		case "cancel":
+			if order.CancelRequested {
+				h.SafeBot.SafeAnswerCallback(callback.ID, "❌ درخواست لغو قبلاً بررسی یا اعمال شده است.", true)
+				return
+			}
+			// بازگردانی مبلغ با کسر ۱۰٪ کارمزد
+			refundAmount := order.TotalAmount * 0.90
+
+			if order.PaymentMethod == "WALLET_TOMAN" || order.PaymentMethod == "CARD" || order.PaymentMethod == "GATEWAY" {
+				user.TomanBalance += refundAmount
+			} else if order.PaymentMethod == "WALLET_POINT" {
+				user.PointBalance += refundAmount
+			} else if order.PaymentMethod == "STARS" {
+				user.StarsBalance += refundAmount
+			}
+			_ = h.UserRepo.UpdateBalances(tenant.ID, user.ID, user.TomanBalance, user.PointBalance, user.StarsBalance)
+
+			// لغو سفارش و تسک وابسته
+			order.Status = "CANCELED"
+			order.CancelRequested = true
+			_ = h.OrderRepo.UpdateOrder(order)
+
+			h.TaskRepo.DB.Model(&domain.Task{}).Where("tenant_id = ? AND order_id = ?", tenant.ID, order.ID).Update("status", "PAUSED")
+
+			h.SafeBot.SafeAnswerCallback(callback.ID, "✅ سفارش لغو شد.", false)
+			successMsg := fmt.Sprintf("✅ سفارش شما لغو گردید و مبلغ %.0f (پس از کسر ۱۰٪ کارمزد لغو) به کیف پول شما بازگشت داده شد.", refundAmount)
+			h.SafeBot.SafeEditText(chatID, messageID, successMsg, nil)
+
+			if tenant.ReportChannelID != "" {
+				chID, _ := strconv.ParseInt(tenant.ReportChannelID, 10, 64)
+				_ = h.SafeBot.SendMessage(chID, fmt.Sprintf("❌ #لغو_سفارش\n\nسفارش `%s` توسط کاربر لغو گردید.", order.TrackingCode))
+			}
+		}
 		return
 	}
 

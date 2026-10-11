@@ -15,10 +15,10 @@ type UserRepository interface {
 
 	GetUserByID(tenantID uint, id uint) (*domain.User, error)
 	AddBalances(tenantID uint, userID uint, toman, point, stars float64) error
-
 	UpdateDrawTickets(tenantID uint, userID uint, tickets int) error
-
 	UpdateUserTaskID(tenantID uint, userID uint, taskID uint) error
+
+	UpdateUserOrderID(tenantID uint, userID uint, orderID uint) error
 }
 
 type userRepository struct {
@@ -96,4 +96,11 @@ func (r *userRepository) UpdateUserTaskID(tenantID uint, userID uint, taskID uin
 	return r.db.Model(&domain.User{}).
 		Where("tenant_id = ? AND id = ?", tenantID, userID).
 		Update("current_task_id", taskID).Error
+}
+
+// UpdateUserOrderID ذخیره آیدی سفارشی که در حال ویرایش است
+func (r *userRepository) UpdateUserOrderID(tenantID uint, userID uint, orderID uint) error {
+	return r.db.Model(&domain.User{}).
+		Where("tenant_id = ? AND id = ?", tenantID, userID).
+		Update("current_order_id", orderID).Error
 }

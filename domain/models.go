@@ -29,6 +29,9 @@ const (
 	StateWaitServiceLink  UserState = "WAIT_SERVICE_LINK"  // انتظار لینک برای انجام سفارش فروشگاه
 	StateWaitServiceCount UserState = "WAIT_SERVICE_COUNT" // انتظار تعداد سفارش فروشگاه
 
+	StateWaitTrackingCode UserState = "WAIT_TRACKING_CODE"  // در انتظار کد رهگیری سفارش
+	StateWaitNewOrderLink UserState = "WAIT_NEW_ORDER_LINK" // در انتظار لینک جدید برای ویرایش سفارش
+
 )
 
 // Tenant (موجودیت اصلی برای معماری SaaS)
@@ -96,7 +99,8 @@ type User struct {
 	PointBalance   float64 // موجودی امتیازی کاربر[cite: 1]
 	StarsBalance   float64 // موجودی استارز کاربر[cite: 1]
 	DrawTickets    int
-	CurrentTaskID  uint      // اضافه شد: ذخیره آیدی تسک دستی که کاربر در حال ارسال عکس برای آن است
+	CurrentTaskID  uint      //  ذخیره آیدی تسک دستی که کاربر در حال ارسال عکس برای آن است
+	CurrentOrderID uint      // ذخیره آیدی سفارشی که کاربر در حال ویرایش لینک آن است
 	Language       string    // زبان انتخابی کاربر برای نمایش متون[cite: 1]
 	LastActiveDate time.Time // تاریخ آخرین فعالیت برای محاسبه قانون ۱۰ روز خاموشی و تخصیص ۵۰٪ امتیاز به معرف جدید[cite: 1]
 	State          UserState `gorm:"default:'NORMAL'"` // برای جلوگیری از باز شدن چند بخش همزمان
@@ -182,6 +186,9 @@ type Order struct {
 	CancelRequested  bool   // ثبت درخواست لغو سفارش با محاسبه ۱۰٪ کارمزد
 	HasRefill        bool   // وضعیت درخواست ریفیل (ریزش)
 	SpeedUpRequested bool   // درخواست سرعت‌دهی به سفارش
+
+	CreatedAt time.Time // اضافه شد: زمان ثبت سفارش (برای محاسبه محدودیت ویرایش ۳۰ دقیقه‌ای)
+	UpdatedAt time.Time // اضافه شد: زمان آخرین آپدیت وضعیت سفارش
 }
 
 // [domain/models.go]

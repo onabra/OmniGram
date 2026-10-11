@@ -104,20 +104,16 @@ func (h *BotHandler) HandleMessage(tenant *domain.Tenant, chatID int64, text str
 	balanceBtnText := getText("btn_balance", "موجودی")
 	refStatsBtnText := getText("btn_ref_stats", "رفرال ها")
 	backMainBtnText := getText("btn_back_main", "بازگشت به منوی اصلی")
-
 	recentTxsBtnText := getText("btn_recent_txs", "تراکنشات اخیر")
 	transferBtnText := getText("btn_transfer", "انتقال")
-
 	btnShop := getText("btn_shop", "فروشگاه")
-
 	taskMenuBtnText := getText("btn_task", "وظایف")
 	sponsorBtnText := getText("btn_sponsor", "📢 اسپانسر شدن (جذب ممبر)")
-
 	supportBtnText := getText("btn_support", "ارتباط با پشتیبانی")
-
 	btnDoTasks := getText("btn_do_tasks", "📝 انجام وظایف (کسب درآمد)")
-
 	btnRefLeague := getText("btn_ref_league", "لیگ")
+
+	btnTrackOrder := getText("btn_track_order", "🔍 پیگیری سفارش")
 
 	// پیدا کردن کاربر از دیتابیس برای عملیاتی که نیاز به اطلاعات کاربر دارند
 	// پیدا کردن کاربر از دیتابیس
@@ -213,6 +209,81 @@ func (h *BotHandler) HandleMessage(tenant *domain.Tenant, chatID int64, text str
 		}
 	}
 
+	// --- سیستم پیگیری و ویرایش سفارشات ---
+	if currentUser.State == domain.StateWaitTrackingCode {
+		if text == backMainBtnText {
+			_ = h.UserRepo.UpdateUserState(tenant.ID, currentUser.ID, domain.StateNormal)
+		} else {
+			order, err := h.OrderRepo.GetOrder(tenant.ID, text)
+			if err != nil || order.UserID != currentUser.ID {
+				_ = h.SafeBot.SendMessage(chatID, "❌ سفارش یافت نشد یا متعلق به شما نیست. لطفاً کد رهگیری معتبر ارسال کنید:")
+				return
+			}
+
+			// نمایش وضعیت سفارش
+			statusFa := "در حال انجام"
+			switch order.Status {
+			case "DRAFT":
+				statusFa = "پیش‌نویس (پرداخت نشده)"
+			case "COMPLETED":
+				statusFa = "تکمیل شده / فعال"
+			case "CANCELED":
+				statusFa = "لغو شده"
+			}
+
+			msgText := fmt.Sprintf("🛒 *جزئیات سفارش شما*\n\n🔖 کد رهگیری: `%s`\n🔗 لینک ثبت شده: %s\n🔢 تعداد/ظرفیت: %d\n💰 مبلغ پرداختی: %.0f\n💳 روش پرداخت: %s\n\n📌 **وضعیت:** %s",
+				order.TrackingCode, order.TargetLink, order.Quantity, order.TotalAmount, order.PaymentMethod, statusFa)
+
+			markup := h.KeyboardBuilder.BuildOrderActionsMenu(order.ID)
+			msg := tgbotapi.NewMessage(chatID, msgText)
+			msg.ParseMode = "Markdown"
+
+			// اگر سفارش لغو شده باشد، دیگر نیازی به دکمه‌های عملیاتی نیست
+			if order.Status != "CANCELED" {
+				msg.ReplyMarkup = markup
+			}
+
+			_, _ = h.SafeBot.Bot.Send(msg)
+			_ = h.UserRepo.UpdateUserState(tenant.ID, currentUser.ID, domain.StateNormal) // خروج موقت از استیت تا کاربر روی دکمه‌های شیشه‌ای کلیک کند
+			return
+		}
+	}
+
+	if currentUser.State == domain.StateWaitNewOrderLink {
+		if text == backMainBtnText {
+			_ = h.UserRepo.UpdateUserState(tenant.ID, currentUser.ID, domain.StateNormal)
+		} else {
+			order, err := h.OrderRepo.GetOrderByID(tenant.ID, currentUser.CurrentOrderID)
+			if err != nil || order.UserID != currentUser.ID {
+				_ = h.SafeBot.SendMessage(chatID, "❌ خطایی در خواندن سفارش رخ داد.")
+				_ = h.UserRepo.UpdateUserState(tenant.ID, currentUser.ID, domain.StateNormal)
+				return
+			}
+
+			resolvedLink, err := ResolveChatID(text)
+			if err != nil {
+				_ = h.SafeBot.SendMessage(chatID, "❌ لینک نامعتبر است. لطفاً لینک صحیح ارسال کنید:")
+				return
+			}
+
+			order.TargetLink = resolvedLink
+			_ = h.OrderRepo.UpdateOrder(order)
+
+			// آپدیت تسک متصل به این سفارش (اگر وجود داشته باشد)
+			var attachedTask domain.Task
+			err = h.TaskRepo.DB.Where("tenant_id = ? AND order_id = ?", tenant.ID, order.ID).First(&attachedTask).Error
+			if err == nil {
+				attachedTask.TargetLink = resolvedLink
+				h.TaskRepo.DB.Save(&attachedTask)
+			}
+
+			_ = h.SafeBot.SendMessage(chatID, "✅ لینک سفارش شما با موفقیت ویرایش شد.")
+			_ = h.UserRepo.UpdateUserState(tenant.ID, currentUser.ID, domain.StateNormal)
+			_ = h.UserRepo.UpdateUserOrderID(tenant.ID, currentUser.ID, 0)
+			return
+		}
+	}
+
 	// --- سیستم پشتیبانی ---
 	if currentUser.State == domain.StateWaitSupportOrderCode {
 		if text == backMainBtnText {
@@ -295,6 +366,16 @@ func (h *BotHandler) HandleMessage(tenant *domain.Tenant, chatID int64, text str
 			msg.ReplyMarkup = shopMenu
 			_, _ = h.SafeBot.Bot.Send(msg)
 		}
+
+	case btnTrackOrder:
+		_ = h.UserRepo.UpdateUserState(tenant.ID, currentUser.ID, domain.StateWaitTrackingCode)
+		msgText := "🔍 *پیگیری سفارش*\n\nلطفاً **کد رهگیری (تراکنش)** سفارش خود را به صورت دقیق ارسال کنید:"
+
+		accMenu, _ := h.KeyboardBuilder.BuildUserAccountMenu(tenant.ID, lang)
+		msg := tgbotapi.NewMessage(chatID, msgText)
+		msg.ParseMode = "Markdown"
+		msg.ReplyMarkup = accMenu // استفاده از کیبورد حساب کاربری برای داشتن دکمه بازگشت
+		_, _ = h.SafeBot.Bot.Send(msg)
 
 	case btnRefLeague:
 		// واکشی قرعه‌کشی‌های فعال

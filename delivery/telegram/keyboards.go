@@ -404,3 +404,21 @@ func (kb *KeyboardBuilder) BuildAdminTaskProofMenu(subID uint) tgbotapi.InlineKe
 		),
 	)
 }
+
+// BuildOrderActionsMenu دکمه‌های عملیات پیشرفته برای یک سفارش خاص
+func (kb *KeyboardBuilder) BuildOrderActionsMenu(orderID uint) tgbotapi.InlineKeyboardMarkup {
+	idStr := fmt.Sprintf("%d", orderID)
+	return tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("⚡ سرعت‌دهی (کسر ۲ امتیاز)", "ordact_speedup_"+idStr),
+			tgbotapi.NewInlineKeyboardButtonData("✏️ ویرایش لینک", "ordact_edit_"+idStr),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("♻️ درخواست ریفیل (جبران ریزش)", "ordact_refill_"+idStr),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("❌ لغو سفارش (کسر ۱۰٪ کارمزد)", "ordact_cancel_"+idStr),
+			tgbotapi.NewInlineKeyboardButtonData("🎫 ثبت تیکت", "new_ticket_"+idStr),
+		),
+	)
+}
