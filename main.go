@@ -35,6 +35,8 @@ func main() {
 		&domain.VerifiedCard{},
 		&domain.Order{},
 		&domain.Transaction{},
+
+		&domain.Receipt{},
 	)
 	if err != nil {
 		log.Println("⚠️ خطا در مایگریشن جداول:", err)
@@ -57,10 +59,11 @@ func main() {
 
 	orderRepo := &repository.OrderRepository{DB: db}
 	serviceRepo := &repository.ServiceRepository{DB: db}
-
 	taskRepo := &repository.TaskRepository{DB: db}
-
 	ticketRepo := &repository.TicketRepository{DB: db}
+	gameRepo := &repository.GameRepository{DB: db}
+
+	receiptRepo := &repository.ReceiptRepository{DB: db}
 
 	// ۴. مقداردهی ماژول کیبوردساز داینامیک
 	keyboardBuilder := &telegram.KeyboardBuilder{
@@ -90,6 +93,9 @@ func main() {
 		AdminIDs:      cfg.AdminIDs,
 
 		TicketRepo: ticketRepo,
+		GameRepo:   gameRepo,
+
+		ReceiptRepo: receiptRepo,
 	}
 
 	// ۶. روشن کردن ربات و اجرای حلقه دریافت پیام‌ها

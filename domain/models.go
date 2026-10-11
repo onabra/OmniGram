@@ -23,6 +23,8 @@ const (
 	StateWaitWithdrawAmount   UserState = "WAIT_WITHDRAW_AMOUNT"    // در انتظار مبلغ برداشت
 	StateWaitWithdrawWallet   UserState = "WAIT_WITHDRAW_WALLET"    // در انتظار آدرس ولت/آیدی مقصد
 	StateWaitSupportOrderCode UserState = "WAIT_SUPPORT_ORDER_CODE" // در انتظار کد رهگیری سفارش
+	StateWaitPaymentReceipt   UserState = "WAIT_PAYMENT_RECEIPT"    // در انتظار ارسال عکس فیش واریزی
+
 )
 
 // Tenant (موجودیت اصلی برای معماری SaaS)
@@ -228,4 +230,16 @@ type League struct {
 	StartDate time.Time
 	EndDate   time.Time
 	IsActive  bool `gorm:"default:true"`
+}
+
+// Receipt (فیش‌های واریزی)
+type Receipt struct {
+	ID        uint    `gorm:"primaryKey"`
+	TenantID  uint    `gorm:"index"`
+	UserID    uint    `gorm:"index"`
+	OrderID   uint    `gorm:"index"` // سفارشی که این فیش برای آن پرداخت شده
+	FileID    string  // آیدی عکس در تلگرام
+	Amount    float64 // مبلغ فاکتور
+	Status    string  `gorm:"default:'PENDING'"` // وضعیت: PENDING, APPROVED, REJECTED
+	CreatedAt time.Time
 }

@@ -18,19 +18,18 @@ type BotHandler struct {
 	KeyboardBuilder *KeyboardBuilder
 	SafeBot         *SafeBot
 	ReferralService *services.ReferralService
+	UserRepo        repository.UserRepository
+	ReferralRepo    *repository.ReferralRepository
+	TxRepo          *repository.TransactionRepository
+	WalletService   *services.WalletService
+	OrderRepo       *repository.OrderRepository
+	ServiceRepo     *repository.ServiceRepository
+	TaskRepo        *repository.TaskRepository
+	TicketRepo      *repository.TicketRepository
 
-	UserRepo     repository.UserRepository
-	ReferralRepo *repository.ReferralRepository
+	GameRepo *repository.GameRepository
 
-	TxRepo        *repository.TransactionRepository
-	WalletService *services.WalletService
-
-	OrderRepo   *repository.OrderRepository
-	ServiceRepo *repository.ServiceRepository
-
-	TaskRepo *repository.TaskRepository
-
-	TicketRepo *repository.TicketRepository
+	ReceiptRepo *repository.ReceiptRepository
 
 	SuperAdminIDs []int64
 	AdminIDs      []int64
@@ -462,6 +461,55 @@ func (h *BotHandler) IsAdmin(telegramID int64) bool {
 		}
 	}
 	return false
+}
+
+// HandlePhoto مدیریت دریافت تصاویر (مثل فیش واریزی)
+func (h *BotHandler) HandlePhoto(tenant *domain.Tenant, message *tgbotapi.Message, lang string) {
+	chatID := message.Chat.ID
+	currentUser, err := h.UserRepo.GetUserByTelegramID(tenant.ID, chatID)
+	if err != nil || currentUser == nil {
+		return
+	}
+
+	if currentUser.State == domain.StateWaitPaymentReceipt {
+		// گرفتن باکیفیت‌ترین سایز عکس ارسالی
+		photo := message.Photo[len(message.Photo)-1]
+		fileID := photo.FileID
+
+		draftOrder, err := h.OrderRepo.GetDraftOrder(tenant.ID, currentUser.ID)
+		if err != nil {
+			_ = h.SafeBot.SendMessage(chatID, "❌ سفارش معلقی یافت نشد. لطفاً مجدداً اقدام کنید.")
+			_ = h.UserRepo.UpdateUserState(tenant.ID, currentUser.ID, domain.StateNormal)
+			return
+		}
+
+		// ثبت فیش در دیتابیس
+		receipt := &domain.Receipt{
+			TenantID: tenant.ID,
+			UserID:   currentUser.ID,
+			OrderID:  draftOrder.ID,
+			FileID:   fileID,
+			Amount:   draftOrder.TotalAmount,
+			Status:   "PENDING",
+		}
+		_ = h.ReceiptRepo.CreateReceipt(receipt)
+
+		_ = h.SafeBot.SendMessage(chatID, "✅ فیش پرداختی شما با موفقیت ثبت شد و در صف بررسی ادمین قرار گرفت. پس از تأیید، پیام اطلاع‌رسانی برای شما ارسال خواهد شد.")
+		_ = h.UserRepo.UpdateUserState(tenant.ID, currentUser.ID, domain.StateNormal)
+
+		// ارسال به کانال گزارش برای ادمین‌ها
+		if tenant.ReportChannelID != "" {
+			chID, _ := strconv.ParseInt(tenant.ReportChannelID, 10, 64)
+			caption := fmt.Sprintf("🧾 *فیش واریزی جدید*\n\n👤 کاربر: [%s](tg://user?id=%d)\n🛒 شماره سفارش: `%s`\n💰 مبلغ پرداخت: %.0f تومان\n\nلطفاً فیش را بررسی و عملیات را انتخاب کنید:",
+				currentUser.FirstName, currentUser.TelegramID, draftOrder.TrackingCode, draftOrder.TotalAmount)
+
+			photoMsg := tgbotapi.NewPhoto(chID, tgbotapi.FileID(fileID))
+			photoMsg.Caption = caption
+			photoMsg.ParseMode = "Markdown"
+			photoMsg.ReplyMarkup = h.KeyboardBuilder.BuildAdminReceiptMenu(receipt.ID)
+			_, _ = h.SafeBot.Bot.Send(photoMsg)
+		}
+	}
 }
 
 //func (h *BotHandler) HandleMessage(tenant *domain.Tenant, chatID int64, text string, lang string) {

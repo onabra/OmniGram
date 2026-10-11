@@ -3,36 +3,230 @@ package telegram
 import (
 	"OmniGram/domain"
 	"fmt"
+	"strconv"
 	"strings"
+	"time"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
 // HandleGroupMessage پردازش پیام‌ها و بازی‌ها در گروه‌ها
 func (h *PollingHandler) HandleGroupMessage(tenant *domain.Tenant, message *tgbotapi.Message) {
-
-	// تشخیص ارسال پیام متنی (مثل کلمه 'بازی 2')
 	if message.Text != "" {
-		if strings.HasPrefix(message.Text, "بازی") {
-			// ساخت میز بازی جدید در دیتابیس و نمایش دکمه شیشه‌ای برای نفر دوم
-			msg := tgbotapi.NewMessage(message.Chat.ID, "یک بازی جدید ایجاد شد. نفر دوم شرکت کند.")
-			h.SafeBot.Bot.Send(msg)
+		text := strings.TrimSpace(message.Text)
+
+		// ۱. نمایش موجودی در گروه
+		if text == "موجودی" {
+			user, err := h.UserRepo.GetUserByTelegramID(tenant.ID, message.From.ID)
+			if err != nil || user == nil {
+				msg := tgbotapi.NewMessage(message.Chat.ID, "❌ ابتدا ربات را در پی‌وی استارت بزنید.")
+				msg.ReplyToMessageID = message.MessageID
+				_, _ = h.SafeBot.Bot.Send(msg)
+				return
+			}
+
+			msgText := fmt.Sprintf("👤 کاربر: %s\n💰 کیف پول (تومان): %.0f\n🎁 امتیاز رفرال: %.0f\n⭐ استارز: %.0f",
+				message.From.FirstName, user.TomanBalance, user.PointBalance, user.StarsBalance)
+			msg := tgbotapi.NewMessage(message.Chat.ID, msgText)
+			msg.ReplyToMessageID = message.MessageID
+			_, _ = h.SafeBot.Bot.Send(msg)
+			return
 		}
-		return
+
+		// ۲. انتقال امتیاز در گروه با ریپلای
+		if strings.HasPrefix(text, "انتقال") {
+			if message.ReplyToMessage == nil {
+				msg := tgbotapi.NewMessage(message.Chat.ID, "⚠️ برای انتقال، روی پیام شخص مورد نظر ریپلای کرده و بفرستید: `انتقال [مبلغ]`")
+				msg.ParseMode = "Markdown"
+				msg.ReplyToMessageID = message.MessageID
+				_, _ = h.SafeBot.Bot.Send(msg)
+				return
+			}
+
+			parts := strings.Split(text, " ")
+			if len(parts) != 2 {
+				return
+			}
+
+			amount, err := strconv.ParseFloat(parts[1], 64)
+			if err != nil || amount <= 0 {
+				msg := tgbotapi.NewMessage(message.Chat.ID, "❌ مبلغ نامعتبر است.")
+				msg.ReplyToMessageID = message.MessageID
+				_, _ = h.SafeBot.Bot.Send(msg)
+				return
+			}
+
+			sender, _ := h.UserRepo.GetUserByTelegramID(tenant.ID, message.From.ID)
+			if sender == nil {
+				msg := tgbotapi.NewMessage(message.Chat.ID, "❌ ابتدا ربات را در پی‌وی استارت بزنید.")
+				msg.ReplyToMessageID = message.MessageID
+				_, _ = h.SafeBot.Bot.Send(msg)
+				return
+			}
+
+			destTelegramID := message.ReplyToMessage.From.ID
+			feePercent := tenant.TransferFeePercent
+			if feePercent <= 0 {
+				feePercent = 5.0
+			}
+
+			err = h.WalletService.TransferBalance(tenant.ID, sender.ID, destTelegramID, amount, "POINT", feePercent)
+			if err != nil {
+				msg := tgbotapi.NewMessage(message.Chat.ID, "❌ خطا: "+err.Error())
+				msg.ReplyToMessageID = message.MessageID
+				_, _ = h.SafeBot.Bot.Send(msg)
+			} else {
+				successMsg := fmt.Sprintf("✅ مبلغ %.0f امتیاز با موفقیت به کاربر مورد نظر انتقال یافت.", amount)
+				msg := tgbotapi.NewMessage(message.Chat.ID, successMsg)
+				msg.ReplyToMessageID = message.MessageID
+				_, _ = h.SafeBot.Bot.Send(msg)
+			}
+			return
+		}
+
+		// ۳. شروع بازی گروهی (تاس/کازینو)
+		if strings.HasPrefix(text, "تاس ") || strings.HasPrefix(text, "کازینو ") {
+			parts := strings.Split(text, " ")
+			if len(parts) != 2 {
+				return
+			}
+
+			amount, err := strconv.ParseFloat(parts[1], 64)
+			if err != nil || amount <= 0 {
+				msg := tgbotapi.NewMessage(message.Chat.ID, "❌ مبلغ شرط نامعتبر است.")
+				msg.ReplyToMessageID = message.MessageID
+				_, _ = h.SafeBot.Bot.Send(msg)
+				return
+			}
+
+			gameType := "DICE"
+			if strings.HasPrefix(text, "کازینو") {
+				gameType = "CASINO"
+			}
+
+			user, err := h.UserRepo.GetUserByTelegramID(tenant.ID, message.From.ID)
+			if err != nil || user == nil {
+				msg := tgbotapi.NewMessage(message.Chat.ID, "❌ ابتدا ربات را در پی‌وی استارت بزنید.")
+				msg.ReplyToMessageID = message.MessageID
+				_, _ = h.SafeBot.Bot.Send(msg)
+				return
+			}
+
+			if user.PointBalance < amount {
+				msg := tgbotapi.NewMessage(message.Chat.ID, "❌ موجودی امتیاز شما برای این شرط کافی نیست.")
+				msg.ReplyToMessageID = message.MessageID
+				_, _ = h.SafeBot.Bot.Send(msg)
+				return
+			}
+
+			activeGame, _ := h.GameRepo.GetActiveGameForUser(tenant.ID, user.ID)
+			if activeGame != nil {
+				msg := tgbotapi.NewMessage(message.Chat.ID, "❌ شما یک بازی در جریان دارید. ابتدا آن را تمام کنید.")
+				msg.ReplyToMessageID = message.MessageID
+				_, _ = h.SafeBot.Bot.Send(msg)
+				return
+			}
+
+			user.PointBalance -= amount
+			_ = h.UserRepo.UpdateBalances(tenant.ID, user.ID, user.TomanBalance, user.PointBalance, user.StarsBalance)
+
+			newGame := &domain.GameSession{
+				TenantID:  tenant.ID,
+				CreatorID: user.ID,
+				BetAmount: amount,
+				GameType:  gameType,
+				Status:    "WAITING",
+			}
+			_ = h.GameRepo.CreateGame(newGame)
+
+			msgText := fmt.Sprintf("🎲 یک بازی %s جدید ایجاد شد!\n👤 سازنده: %s\n💰 مبلغ: %.0f امتیاز\n\nنفر دوم روی دکمه زیر کلیک کند:", gameType, message.From.FirstName, amount)
+			joinMenu := h.KeyboardBuilder.BuildGameJoinMenu(newGame.ID, amount)
+
+			msg := tgbotapi.NewMessage(message.Chat.ID, msgText)
+			msg.ReplyMarkup = joinMenu
+			_, _ = h.SafeBot.Bot.Send(msg)
+			return
+		}
 	}
 
-	// تشخیص ارسال ایموجی تاس یا کازینو
+	// ۴. هندل کردن ارسال استیکر تاس/کازینو توسط کاربر
 	if message.Dice != nil {
-		// emoji := message.Dice.Emoji // "🎲" یا "🎰"
-		value := message.Dice.Value // نتیجه تصادفی که تلگرام تولید کرده
+		emoji := message.Dice.Emoji
+		value := message.Dice.Value
 
-		// اینجا کاربر فرستنده (message.From.ID) را در دیتابیس پیدا می‌کنید
-		// چک می‌کنید اگر در بازی بود، مقدار Value را برایش ثبت می‌کنید
+		user, err := h.UserRepo.GetUserByTelegramID(tenant.ID, message.From.ID)
+		if err != nil || user == nil {
+			return
+		}
 
-		// پیغام نتیجه
-		resultMsg := fmt.Sprintf("کاربر عزیز، عدد شانس شما: %d", value)
-		msg := tgbotapi.NewMessage(message.Chat.ID, resultMsg)
-		msg.ReplyToMessageID = message.MessageID
-		h.SafeBot.Bot.Send(msg)
+		activeGame, err := h.GameRepo.GetActiveGameForUser(tenant.ID, user.ID)
+		if err != nil || activeGame == nil || activeGame.Status != "IN_PROGRESS" {
+			return
+		}
+
+		if activeGame.GameType == "DICE" && emoji != "🎲" {
+			return
+		}
+		if activeGame.GameType == "CASINO" && emoji != "🎰" {
+			return
+		}
+
+		if activeGame.CreatorID == user.ID {
+			if activeGame.CreatorRoll != nil {
+				return
+			}
+			activeGame.CreatorRoll = &value
+		} else if activeGame.JoinerID != nil && *activeGame.JoinerID == user.ID {
+			if activeGame.JoinerRoll != nil {
+				return
+			}
+			activeGame.JoinerRoll = &value
+		}
+
+		_ = h.GameRepo.UpdateGame(activeGame)
+
+		if activeGame.CreatorRoll != nil && activeGame.JoinerRoll != nil {
+			activeGame.Status = "FINISHED"
+			_ = h.GameRepo.UpdateGame(activeGame)
+
+			creator, _ := h.UserRepo.GetUserByID(tenant.ID, activeGame.CreatorID)
+			joiner, _ := h.UserRepo.GetUserByID(tenant.ID, *activeGame.JoinerID)
+
+			cRoll := *activeGame.CreatorRoll
+			jRoll := *activeGame.JoinerRoll
+
+			totalPot := activeGame.BetAmount * 2
+
+			feePercent := tenant.TransferFeePercent
+			if feePercent <= 0 {
+				feePercent = 5.0
+			}
+			feeAmount := totalPot * (feePercent / 100)
+			winAmount := totalPot - feeAmount
+
+			var resultMsg string
+			if cRoll > jRoll {
+				creator.PointBalance += winAmount
+				_ = h.UserRepo.UpdateBalances(tenant.ID, creator.ID, creator.TomanBalance, creator.PointBalance, creator.StarsBalance)
+				resultMsg = fmt.Sprintf("🎉 پایان بازی!\n\n%s: %d\n%s: %d\n\n🏆 برنده: %s\n💰 جایزه: %.0f امتیاز", creator.FirstName, cRoll, joiner.FirstName, jRoll, creator.FirstName, winAmount)
+			} else if jRoll > cRoll {
+				joiner.PointBalance += winAmount
+				_ = h.UserRepo.UpdateBalances(tenant.ID, joiner.ID, joiner.TomanBalance, joiner.PointBalance, joiner.StarsBalance)
+				resultMsg = fmt.Sprintf("🎉 پایان بازی!\n\n%s: %d\n%s: %d\n\n🏆 برنده: %s\n💰 جایزه: %.0f امتیاز", creator.FirstName, cRoll, joiner.FirstName, jRoll, joiner.FirstName, winAmount)
+			} else {
+				creator.PointBalance += activeGame.BetAmount
+				joiner.PointBalance += activeGame.BetAmount
+				_ = h.UserRepo.UpdateBalances(tenant.ID, creator.ID, creator.TomanBalance, creator.PointBalance, creator.StarsBalance)
+				_ = h.UserRepo.UpdateBalances(tenant.ID, joiner.ID, joiner.TomanBalance, joiner.PointBalance, joiner.StarsBalance)
+				resultMsg = fmt.Sprintf("⚖️ بازی مساوی شد! (%d - %d)\n\nمبلغ شرط به حساب هر دو نفر برگشت داده شد.", cRoll, jRoll)
+			}
+
+			go func() {
+				time.Sleep(3 * time.Second)
+				msg := tgbotapi.NewMessage(message.Chat.ID, resultMsg)
+				msg.ReplyToMessageID = message.MessageID
+				_, _ = h.SafeBot.Bot.Send(msg)
+			}()
+		}
 	}
 }

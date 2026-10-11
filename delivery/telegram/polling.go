@@ -24,14 +24,15 @@ type PollingHandler struct {
 	WalletService   *services.WalletService
 	SafeBot         *SafeBot
 	Logger          *core.CentralLogger
+	OrderRepo       *repository.OrderRepository
+	ServiceRepo     *repository.ServiceRepository
+	TaskRepo        *repository.TaskRepository
 
-	OrderRepo *repository.OrderRepository
-
-	ServiceRepo *repository.ServiceRepository
-
-	TaskRepo *repository.TaskRepository
+	GameRepo *repository.GameRepository
 
 	TicketRepo *repository.TicketRepository
+
+	ReceiptRepo *repository.ReceiptRepository
 
 	SuperAdminIDs []int64
 	AdminIDs      []int64
@@ -117,11 +118,45 @@ func (h *PollingHandler) processUpdateWithRecovery(update tgbotapi.Update) {
 			OrderRepo:       h.OrderRepo,
 			ServiceRepo:     h.ServiceRepo,
 			TaskRepo:        h.TaskRepo,
+			SuperAdminIDs:   h.SuperAdminIDs,
+			AdminIDs:        h.AdminIDs,
+			TicketRepo:      h.TicketRepo,
+			GameRepo:        h.GameRepo,
+			ReceiptRepo:     h.ReceiptRepo,
+		}
+
+		if update.Message.Command() == "start" {
+			botHandler.HandleStart(tenant, chatID, lang, update.Message.Text)
+		} else if update.Message.Photo != nil {
+			botHandler.HandlePhoto(tenant, update.Message, lang)
+		} else if update.Message.Text != "" {
+			botHandler.HandleMessage(tenant, chatID, update.Message.Text, lang)
+		}
+	}
+
+	if update.Message != nil {
+		chatID := update.Message.Chat.ID
+
+		botHandler := &BotHandler{
+			TenantRepo:      h.TenantRepo,
+			TranslationRepo: h.TranslationRepo,
+			KeyboardBuilder: h.KeyboardBuilder,
+			SafeBot:         h.SafeBot,
+			UserRepo:        h.UserRepo,
+			ReferralRepo:    h.RefRepo,
+			TxRepo:          h.TxRepo,
+			WalletService:   h.WalletService,
+			OrderRepo:       h.OrderRepo,
+			ServiceRepo:     h.ServiceRepo,
+			TaskRepo:        h.TaskRepo,
 
 			SuperAdminIDs: h.SuperAdminIDs,
 			AdminIDs:      h.AdminIDs,
 
 			TicketRepo: h.TicketRepo,
+			GameRepo:   h.GameRepo,
+
+			ReceiptRepo: h.ReceiptRepo,
 		}
 
 		if update.Message.Command() == "start" {

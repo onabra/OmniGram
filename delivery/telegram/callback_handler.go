@@ -232,7 +232,14 @@ func (h *PollingHandler) HandleCallback(tenant *domain.Tenant, update tgbotapi.U
 		case "stars":
 			h.SafeBot.SafeAnswerCallback(callback.ID, "⏳ سیستم پرداخت استارز تلگرام به زودی متصل می‌شود.", true)
 			// ارسال Invoice اختصاصی تلگرام (SendInvoice) برای استارز
+
+		case "card":
+			_ = h.UserRepo.UpdateUserState(tenant.ID, user.ID, domain.StateWaitPaymentReceipt)
+			// شماره کارت را ادمین می‌تواند در آینده از طریق پنل در دیتابیس ذخیره کند، فعلاً هاردکد موقت نمایشی:
+			cardMsg := fmt.Sprintf("💳 لطفاً مبلغ %.0f تومان را به شماره کارت زیر واریز کنید:\n\n`1234-5678-9012-3456`\nبه نام: مدیریت\n\n📸 سپس عکس رسید پرداخت را همینجا ارسال کنید:", order.TotalAmount)
+			h.SafeBot.SafeEditText(chatID, messageID, cardMsg, nil)
 		}
+
 		return
 	}
 
@@ -262,6 +269,58 @@ func (h *PollingHandler) HandleCallback(tenant *domain.Tenant, update tgbotapi.U
 
 	// [delivery/telegram/callback_handler.go]
 	// feat(callback): verify channel membership and reward user for tasks
+
+	// [delivery/telegram/callback_handler.go]
+	// کاربر روی دکمه پیوستن به بازی گروهی کلیک کرده است
+	if strings.HasPrefix(data, "join_game_") {
+		gameIDStr := strings.TrimPrefix(data, "join_game_")
+		gameID, _ := strconv.Atoi(gameIDStr)
+
+		user, _ := h.UserRepo.GetUserByTelegramID(tenant.ID, chatID)
+		if user == nil {
+			h.SafeBot.SafeAnswerCallback(callback.ID, "❌ ابتدا ربات را در پی‌وی استارت بزنید.", true)
+			return
+		}
+
+		game, err := h.GameRepo.GetGameByID(tenant.ID, uint(gameID))
+		if err != nil || game.Status != "WAITING" {
+			h.SafeBot.SafeAnswerCallback(callback.ID, "❌ این بازی لغو شده یا نفر دوم قبلاً عضو شده است.", true)
+			return
+		}
+
+		if game.CreatorID == user.ID {
+			h.SafeBot.SafeAnswerCallback(callback.ID, "❌ شما سازنده این میز هستید و نمی‌توانید با خودتان بازی کنید!", true)
+			return
+		}
+
+		if user.PointBalance < game.BetAmount {
+			h.SafeBot.SafeAnswerCallback(callback.ID, "❌ موجودی امتیاز شما برای پیوستن به این شرط کافی نیست.", true)
+			return
+		}
+
+		activeGame, _ := h.GameRepo.GetActiveGameForUser(tenant.ID, user.ID)
+		if activeGame != nil {
+			h.SafeBot.SafeAnswerCallback(callback.ID, "❌ شما یک بازی در جریان دارید. ابتدا آن را تمام کنید.", true)
+			return
+		}
+
+		user.PointBalance -= game.BetAmount
+		_ = h.UserRepo.UpdateBalances(tenant.ID, user.ID, user.TomanBalance, user.PointBalance, user.StarsBalance)
+
+		game.JoinerID = &user.ID
+		game.Status = "IN_PROGRESS"
+		_ = h.GameRepo.UpdateGame(game)
+
+		h.SafeBot.SafeAnswerCallback(callback.ID, "✅ با موفقیت به بازی پیوستید!", false)
+
+		emoji := "🎲"
+		if game.GameType == "CASINO" {
+			emoji = "🎰"
+		}
+		startMsg := fmt.Sprintf("🔥 ظرفیت بازی تکمیل شد!\n\nهر دو شرکت‌کننده لطفاً ایموجی %s را در گروه ارسال کنید.", emoji)
+		h.SafeBot.SafeEditText(chatID, messageID, startMsg, nil)
+		return
+	}
 
 	// کاربر روی بررسی عضویت تسک کلیک کرده است
 	if strings.HasPrefix(data, "verify_task_") {
@@ -373,9 +432,75 @@ func (h *PollingHandler) HandleCallback(tenant *domain.Tenant, update tgbotapi.U
 		// بررسی بخش درخواستی
 		action := strings.TrimPrefix(data, "admin_")
 		switch action {
-		case "orders":
+		case action == "orders":
 			// TODO: فراخوانی لیست سفارشات
 			h.SafeBot.SafeAnswerCallback(callback.ID, "در حال بارگذاری سفارشات...", false)
+
+		case strings.HasPrefix(action, "receipt_"):
+			parts := strings.Split(action, "_")
+			if len(parts) != 3 {
+				return
+			}
+			receiptAction := parts[1] // approve یا reject
+			receiptID, _ := strconv.Atoi(parts[2])
+
+			receipt, err := h.ReceiptRepo.GetReceiptByID(tenant.ID, uint(receiptID))
+			if err != nil || receipt.Status != "PENDING" {
+				h.SafeBot.SafeAnswerCallback(callback.ID, "❌ این فیش قبلاً بررسی شده است.", true)
+				return
+			}
+
+			order, err := h.OrderRepo.GetOrderByID(tenant.ID, receipt.OrderID)
+			if err != nil {
+				return
+			}
+
+			userUser, _ := h.UserRepo.GetUserByID(tenant.ID, receipt.UserID)
+
+			if receiptAction == "approve" {
+				// تأیید فیش و قطعی کردن سفارش
+				receipt.Status = "APPROVED"
+				_ = h.ReceiptRepo.UpdateStatus(receipt)
+
+				order.PaymentMethod = "CARD"
+				order.PaymentStatus = "PAID"
+				order.Status = "COMPLETED"
+				_ = h.OrderRepo.UpdateOrder(order)
+
+				// ثبت خودکار سفارش اسپانسر به عنوان تسک جدید
+				newTask := &domain.Task{
+					TenantID:      tenant.ID,
+					OrderID:       order.ID,
+					Title:         "📢 عضویت در کانال اسپانسر",
+					TargetLink:    order.TargetLink,
+					Capacity:      order.Quantity,
+					TaskType:      "auto_join",
+					RewardType:    "point",
+					RewardAmount:  10.0,
+					StayDuration:  24,
+					PenaltyAmount: 50.0,
+					Status:        "ACTIVE",
+				}
+				_ = h.TaskRepo.CreateTask(newTask)
+
+				h.SafeBot.SafeAnswerCallback(callback.ID, "✅ فیش تأیید و تسک ساخته شد.", false)
+				h.SafeBot.SafeEditText(chatID, messageID, "✅ این فیش توسط ادمین تأیید و به تسک تبدیل شد.", nil)
+				if userUser != nil {
+					_ = h.SafeBot.SendMessage(userUser.TelegramID, fmt.Sprintf("✅ فیش واریزی شما مبلغ %.0f تومان تأیید شد و سفارش شما فعال گردید.", receipt.Amount))
+				}
+
+			} else if receiptAction == "reject" {
+				// رد فیش
+				receipt.Status = "REJECTED"
+				_ = h.ReceiptRepo.UpdateStatus(receipt)
+
+				h.SafeBot.SafeAnswerCallback(callback.ID, "❌ فیش رد شد.", false)
+				h.SafeBot.SafeEditText(chatID, messageID, "❌ این فیش توسط ادمین رد شد.", nil)
+				if userUser != nil {
+					_ = h.SafeBot.SendMessage(userUser.TelegramID, "❌ فیش واریزی شما تأیید نشد. لطفاً در صورت بروز مشکل به پشتیبانی پیام دهید.")
+				}
+			}
+			return
 		case "tickets":
 			// TODO: فراخوانی تیکت‌های پشتیبانی
 			h.SafeBot.SafeAnswerCallback(callback.ID, "در حال بارگذاری تیکت‌ها...", false)

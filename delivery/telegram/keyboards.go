@@ -163,12 +163,16 @@ func (kb *KeyboardBuilder) BuildPaymentMethodMenu(tenantID uint, lang string, or
 	btnWalletPoint := getText("btn_pay_point", "🎁 کیف پول (امتیاز)")
 	btnStars := getText("btn_pay_stars", "⭐ پرداخت استارز")
 	btnGateway := getText("btn_pay_gateway", "🔗 درگاه پرداخت")
+	btnCard := getText("btn_pay_card", "🏦 کارت به کارت (ارسال فیش)")
 
 	idStr := fmt.Sprintf("%d", orderID) // تزریق آیدی سفارش به دیتای دکمه جهت رهگیری
 
 	keyboard := tgbotapi.NewInlineKeyboardMarkup(
-		tgbotapi.NewInlineKeyboardRow(tgbotapi.NewInlineKeyboardButtonData(btnWalletToman, "pay_toman_"+idStr)),
-		tgbotapi.NewInlineKeyboardRow(tgbotapi.NewInlineKeyboardButtonData(btnWalletPoint, "pay_point_"+idStr)),
+		tgbotapi.NewInlineKeyboardRow(tgbotapi.NewInlineKeyboardButtonData(btnCard, "pay_card_"+idStr)),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData(btnWalletToman, "pay_toman_"+idStr),
+			tgbotapi.NewInlineKeyboardButtonData(btnWalletPoint, "pay_point_"+idStr),
+		),
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData(btnStars, "pay_stars_"+idStr),
 			tgbotapi.NewInlineKeyboardButtonData(btnGateway, "pay_gate_"+idStr),
@@ -285,6 +289,28 @@ func (kb *KeyboardBuilder) BuildTaskActionMenu(taskID uint, targetLink string) t
 		),
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("✅ بررسی عضویت و دریافت پاداش", "verify_task_"+idStr),
+		),
+	)
+}
+
+// BuildGameJoinMenu دکمه شیشه‌ای برای پیوستن به میز بازی
+func (kb *KeyboardBuilder) BuildGameJoinMenu(gameID uint, amount float64) tgbotapi.InlineKeyboardMarkup {
+	idStr := fmt.Sprintf("%d", gameID)
+	btnText := fmt.Sprintf("🎮 پیوستن به بازی (%.0f امتیاز)", amount)
+	return tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData(btnText, "join_game_"+idStr),
+		),
+	)
+}
+
+// BuildAdminReceiptMenu دکمه‌های تأیید فیش برای ادمین
+func (kb *KeyboardBuilder) BuildAdminReceiptMenu(receiptID uint) tgbotapi.InlineKeyboardMarkup {
+	idStr := fmt.Sprintf("%d", receiptID)
+	return tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("✅ تأیید فیش و ثبت سفارش", "admin_receipt_approve_"+idStr),
+			tgbotapi.NewInlineKeyboardButtonData("❌ رد فیش", "admin_receipt_reject_"+idStr),
 		),
 	)
 }
