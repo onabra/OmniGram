@@ -927,6 +927,7 @@ func (h *PollingHandler) HandleCallback(tenant *domain.Tenant, update tgbotapi.U
 				h.SafeBot.SafeEditText(chatID, messageID, msgText, &markup)
 			}
 			return
+
 		case strings.HasPrefix(action, "withdraw_"):
 			parts := strings.Split(action, "_")
 			if len(parts) != 3 {
@@ -989,6 +990,22 @@ func (h *PollingHandler) HandleCallback(tenant *domain.Tenant, update tgbotapi.U
 				h.SafeBot.SafeEditText(chatID, messageID, msgText, &markup)
 			} else {
 				h.SafeBot.SafeAnswerCallback(callback.ID, "⛔️ دسترسی غیرمجاز.", true)
+			}
+			return
+
+		case action == "forcejoin":
+			if isSuper {
+				channels, _ := h.ForceJoinRepo.GetActiveForceJoins(tenant.ID)
+				markup := h.KeyboardBuilder.BuildAdminForceJoinListMenu(channels)
+				h.SafeBot.SafeEditText(chatID, messageID, "🛑 *مدیریت کانال‌های جوین اجباری*\n\nلیست کانال‌های فعال در سیستم در زیر نمایش داده شده است. برای حذف، روی آن‌ها کلیک کنید:", &markup)
+			}
+			return
+
+		case action == "tasks":
+			if isSuper || isAdmin {
+				tasks, _ := h.TaskRepo.GetAllTasks(tenant.ID)
+				markup := h.KeyboardBuilder.BuildAdminTasksListMenu(tasks)
+				h.SafeBot.SafeEditText(chatID, messageID, "📝 *مدیریت تسک‌ها و اسپانسرها*\n\nبرای تغییر ظرفیت، تعیین جریمه یا متوقف کردن هر تسک روی آن کلیک کنید:", &markup)
 			}
 			return
 
@@ -1081,6 +1098,87 @@ func (h *PollingHandler) HandleCallback(tenant *domain.Tenant, update tgbotapi.U
 
 		h.SafeBot.SafeAnswerCallback(callback.ID, "لطفاً مقدار جدید را ارسال کنید.", false)
 		_, _ = h.SafeBot.Bot.Send(tgbotapi.NewMessage(chatID, "⚙️ لطفاً مقدار جدید (عدد یا درصد) را پیام کنید:"))
+		return
+	}
+
+	// مدیریت کانال‌های جوین اجباری (ادمین)
+	if strings.HasPrefix(data, "admfj_") {
+		if !botHandlerTemp.IsSuperAdmin(chatID) {
+			return
+		}
+		action := strings.TrimPrefix(data, "admfj_")
+
+		if action == "add" {
+			user, _ := h.UserRepo.GetUserByTelegramID(tenant.ID, chatID)
+			_ = h.UserRepo.UpdateUserState(tenant.ID, user.ID, domain.StateAdminWaitForceJoinData)
+			h.SafeBot.SafeAnswerCallback(callback.ID, "ارسال اطلاعات...", false)
+			msg := tgbotapi.NewMessage(chatID, "🛑 لطفاً **آیدی کانال** و **لینک عضویت** را با یک فاصله (Space) ارسال کنید.\n\nمثال کانال خصوصی:\n`-100123456789 https://t.me/joinchat/XXXX`\nمثال کانال عمومی:\n`@mychannel https://t.me/mychannel`")
+			msg.ParseMode = "Markdown"
+			_, _ = h.SafeBot.Bot.Send(msg)
+			return
+		}
+
+		if strings.HasPrefix(action, "del_") {
+			fjID, _ := strconv.Atoi(strings.TrimPrefix(action, "del_"))
+			_ = h.ForceJoinRepo.Delete(tenant.ID, uint(fjID))
+			h.SafeBot.SafeAnswerCallback(callback.ID, "✅ کانال حذف شد.", false)
+
+			// رفرش منو
+			channels, _ := h.ForceJoinRepo.GetActiveForceJoins(tenant.ID)
+			markup := h.KeyboardBuilder.BuildAdminForceJoinListMenu(channels)
+			h.SafeBot.SafeEditText(chatID, messageID, "🛑 *مدیریت کانال‌های جوین اجباری*\n\n✅ لیست بروزرسانی شد:", &markup)
+			return
+		}
+	}
+
+	// مدیریت تسک‌ها (ادمین)
+	if strings.HasPrefix(data, "admtask_") {
+		if !botHandlerTemp.IsSuperAdmin(chatID) && !botHandlerTemp.IsAdmin(chatID) {
+			return
+		}
+		parts := strings.Split(data, "_")
+		if len(parts) < 3 {
+			return
+		}
+		action := parts[1] // edit, cap, pen, toggle
+		taskID, _ := strconv.Atoi(parts[2])
+
+		task, err := h.TaskRepo.GetTaskByID(tenant.ID, uint(taskID))
+		if err != nil {
+			return
+		}
+		user, _ := h.UserRepo.GetUserByTelegramID(tenant.ID, chatID)
+
+		switch action {
+		case "edit":
+			markup := h.KeyboardBuilder.BuildAdminTaskEditMenu(task.ID, task.Status)
+			msgText := fmt.Sprintf("📝 *ویرایش تسک*\n\n📌 عنوان: %s\n👥 ظرفیت فعلی: %d\n💰 پاداش عضویت: %.0f %s\n⚖️ جریمه لفت دادن: %.0f\nوضعیت: **%s**\n\nعملیات مورد نظر را انتخاب کنید:",
+				task.Title, task.Capacity, task.RewardAmount, task.RewardType, task.PenaltyAmount, task.Status)
+			h.SafeBot.SafeEditText(chatID, messageID, msgText, &markup)
+		case "cap":
+			_ = h.UserRepo.UpdateAdminTaskTarget(tenant.ID, user.ID, task.ID)
+			_ = h.UserRepo.UpdateUserState(tenant.ID, user.ID, domain.StateAdminWaitTaskCapacity)
+			h.SafeBot.SafeAnswerCallback(callback.ID, "ارسال ظرفیت", false)
+			_, _ = h.SafeBot.Bot.Send(tgbotapi.NewMessage(chatID, fmt.Sprintf("👥 لطفاً **ظرفیت جدید** را برای تسک «%s» به صورت عدد ارسال کنید:", task.Title)))
+		case "pen":
+			_ = h.UserRepo.UpdateAdminTaskTarget(tenant.ID, user.ID, task.ID)
+			_ = h.UserRepo.UpdateUserState(tenant.ID, user.ID, domain.StateAdminWaitTaskPenalty)
+			h.SafeBot.SafeAnswerCallback(callback.ID, "ارسال جریمه", false)
+			_, _ = h.SafeBot.Bot.Send(tgbotapi.NewMessage(chatID, fmt.Sprintf("⚖️ لطفاً **مبلغ جریمه (لفت دادن)** را برای تسک «%s» به صورت عدد ارسال کنید:", task.Title)))
+		case "toggle":
+			if task.Status == "ACTIVE" {
+				task.Status = "PAUSED"
+			} else {
+				task.Status = "ACTIVE"
+			}
+			_ = h.TaskRepo.UpdateTask(task)
+			h.SafeBot.SafeAnswerCallback(callback.ID, "وضعیت تغییر کرد.", false)
+			// رفرش منو
+			markup := h.KeyboardBuilder.BuildAdminTaskEditMenu(task.ID, task.Status)
+			msgText := fmt.Sprintf("📝 *ویرایش تسک*\n\n📌 عنوان: %s\n👥 ظرفیت فعلی: %d\n💰 پاداش عضویت: %.0f %s\n⚖️ جریمه لفت دادن: %.0f\nوضعیت: **%s**\n\nعملیات مورد نظر را انتخاب کنید:",
+				task.Title, task.Capacity, task.RewardAmount, task.RewardType, task.PenaltyAmount, task.Status)
+			h.SafeBot.SafeEditText(chatID, messageID, msgText, &markup)
+		}
 		return
 	}
 

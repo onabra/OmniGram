@@ -562,6 +562,70 @@ func (h *BotHandler) HandleMessage(tenant *domain.Tenant, chatID int64, text str
 		}
 	}
 
+	// --- مدیریت ثبت کانال جوین اجباری ---
+	if currentUser.State == domain.StateAdminWaitForceJoinData {
+		if text == backMainBtnText {
+			_ = h.UserRepo.UpdateUserState(tenant.ID, currentUser.ID, domain.StateNormal)
+		} else {
+			parts := strings.Fields(text) // جدا کردن با فاصله
+			if len(parts) < 2 {
+				_ = h.SafeBot.SendMessage(chatID, "❌ فرمت اشتباه است. لطفاً آیدی کانال و لینک را با یک فاصله ارسال کنید.")
+				return
+			}
+			newFJ := &domain.ForceJoin{
+				TenantID: tenant.ID,
+				ChatID:   parts[0], // مثلاً @mychannel یا -100123456
+				Link:     parts[1], // لینک برای دکمه شیشه‌ای
+				IsActive: true,
+			}
+			_ = h.ForceJoinRepo.Create(newFJ)
+			_ = h.SafeBot.SendMessage(chatID, "✅ کانال حامی (جوین اجباری) با موفقیت به سیستم اضافه شد و قفل آن برای کاربران فعال گردید.")
+			_ = h.UserRepo.UpdateUserState(tenant.ID, currentUser.ID, domain.StateNormal)
+			return
+		}
+	}
+
+	// --- مدیریت ظرفیت و جریمه تسک‌ها ---
+	if currentUser.State == domain.StateAdminWaitTaskCapacity {
+		if text == backMainBtnText {
+			_ = h.UserRepo.UpdateUserState(tenant.ID, currentUser.ID, domain.StateNormal)
+		} else {
+			cap, err := strconv.Atoi(text)
+			if err != nil || cap < 0 {
+				_ = h.SafeBot.SendMessage(chatID, "❌ مقدار ظرفیت نامعتبر است. فقط عدد ارسال کنید.")
+				return
+			}
+			task, _ := h.TaskRepo.GetTaskByID(tenant.ID, currentUser.AdminTargetTaskID)
+			if task != nil {
+				task.Capacity = cap
+				_ = h.TaskRepo.UpdateTask(task)
+				_ = h.SafeBot.SendMessage(chatID, fmt.Sprintf("✅ ظرفیت تسک با موفقیت به %d بروزرسانی شد.", cap))
+			}
+			_ = h.UserRepo.UpdateUserState(tenant.ID, currentUser.ID, domain.StateNormal)
+			return
+		}
+	}
+
+	if currentUser.State == domain.StateAdminWaitTaskPenalty {
+		if text == backMainBtnText {
+			_ = h.UserRepo.UpdateUserState(tenant.ID, currentUser.ID, domain.StateNormal)
+		} else {
+			pen, err := strconv.ParseFloat(text, 64)
+			if err != nil || pen < 0 {
+				_ = h.SafeBot.SendMessage(chatID, "❌ مبلغ جریمه نامعتبر است.")
+				return
+			}
+			task, _ := h.TaskRepo.GetTaskByID(tenant.ID, currentUser.AdminTargetTaskID)
+			if task != nil {
+				task.PenaltyAmount = pen
+				_ = h.TaskRepo.UpdateTask(task)
+				_ = h.SafeBot.SendMessage(chatID, fmt.Sprintf("✅ مبلغ جریمه لفت دادن از تسک با موفقیت به %.0f بروزرسانی شد.", pen))
+			}
+			_ = h.UserRepo.UpdateUserState(tenant.ID, currentUser.ID, domain.StateNormal)
+			return
+		}
+	}
+
 	switch text {
 
 	case btnShop:

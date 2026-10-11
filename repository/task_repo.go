@@ -79,3 +79,15 @@ func (r *TaskRepository) GetUserApprovedTaskCount(tenantID uint, userID uint) in
 		Count(&count)
 	return count
 }
+
+// GetAllTasks واکشی تمام تسک‌ها برای پنل ادمین
+func (r *TaskRepository) GetAllTasks(tenantID uint) ([]domain.Task, error) {
+	var tasks []domain.Task
+	err := r.DB.Where("tenant_id = ?", tenantID).Order("id desc").Find(&tasks).Error
+	return tasks, err
+}
+
+// UpdateTask بروزرسانی اطلاعات یک تسک (مثل تغییر جریمه یا ظرفیت)
+func (r *TaskRepository) UpdateTask(task *domain.Task) error {
+	return r.DB.Save(task).Error
+}

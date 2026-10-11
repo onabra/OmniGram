@@ -525,3 +525,55 @@ func (kb *KeyboardBuilder) BuildAdminPricesMenu() tgbotapi.InlineKeyboardMarkup 
 		),
 	)
 }
+
+// BuildAdminForceJoinListMenu منوی مدیریت کانال‌های جوین اجباری
+func (kb *KeyboardBuilder) BuildAdminForceJoinListMenu(channels []domain.ForceJoin) tgbotapi.InlineKeyboardMarkup {
+	var rows [][]tgbotapi.InlineKeyboardButton
+	for _, ch := range channels {
+		btnText := fmt.Sprintf("❌ حذف %s", ch.ChatID)
+		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData(btnText, fmt.Sprintf("admfj_del_%d", ch.ID)),
+		))
+	}
+	rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+		tgbotapi.NewInlineKeyboardButtonData("➕ افزودن کانال جدید", "admfj_add"),
+	))
+	return tgbotapi.NewInlineKeyboardMarkup(rows...)
+}
+
+// BuildAdminTasksListMenu لیست تسک‌ها و اسپانسرها برای ادمین
+func (kb *KeyboardBuilder) BuildAdminTasksListMenu(tasks []domain.Task) tgbotapi.InlineKeyboardMarkup {
+	var rows [][]tgbotapi.InlineKeyboardButton
+	for _, t := range tasks {
+		statusIcon := "🟢"
+		if t.Status != "ACTIVE" {
+			statusIcon = "🔴"
+		}
+		btnText := fmt.Sprintf("%s %s (ظرفیت: %d)", statusIcon, t.Title, t.Capacity)
+		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData(btnText, fmt.Sprintf("admtask_edit_%d", t.ID)),
+		))
+	}
+	return tgbotapi.NewInlineKeyboardMarkup(rows...)
+}
+
+// BuildAdminTaskEditMenu منوی ویرایش یک تسک خاص
+func (kb *KeyboardBuilder) BuildAdminTaskEditMenu(taskID uint, status string) tgbotapi.InlineKeyboardMarkup {
+	idStr := fmt.Sprintf("%d", taskID)
+	statusToggle := "🔴 توقف موقت تسک"
+	if status != "ACTIVE" {
+		statusToggle = "🟢 فعال‌سازی مجدد تسک"
+	}
+	return tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("✏️ تغییر ظرفیت", "admtask_cap_"+idStr),
+			tgbotapi.NewInlineKeyboardButtonData("⚖️ تعیین جریمه لفت", "admtask_pen_"+idStr),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData(statusToggle, "admtask_toggle_"+idStr),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("🔙 بازگشت به لیست تسک‌ها", "admin_tasks"),
+		),
+	)
+}

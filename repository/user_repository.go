@@ -18,8 +18,8 @@ type UserRepository interface {
 	UpdateUserTaskID(tenantID uint, userID uint, taskID uint) error
 	UpdateUserOrderID(tenantID uint, userID uint, orderID uint) error
 	UpdateWithdrawDraft(tenantID uint, userID uint, currency string, amount float64) error
-
 	UpdateAdminTargets(tenantID uint, adminID uint, targetUserID uint, setting string, action string) error
+	UpdateAdminTaskTarget(tenantID uint, adminID uint, taskID uint) error
 }
 
 type userRepository struct {
@@ -125,4 +125,11 @@ func (r *userRepository) UpdateAdminTargets(tenantID uint, adminID uint, targetU
 			"admin_target_setting": setting,
 			"admin_target_action":  action,
 		}).Error
+}
+
+// UpdateAdminTaskTarget ذخیره آیدی تسکی که ادمین قصد ویرایش آن را دارد
+func (r *userRepository) UpdateAdminTaskTarget(tenantID uint, adminID uint, taskID uint) error {
+	return r.db.Model(&domain.User{}).
+		Where("tenant_id = ? AND id = ?", tenantID, adminID).
+		Update("admin_target_task_id", taskID).Error
 }

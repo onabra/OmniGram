@@ -41,6 +41,10 @@ const (
 	StateAdminWaitServicePriceUSD UserState = "ADMIN_WAIT_SRV_PRICE_USD" // انتظار قیمت دلاری سرویس
 	StateAdminWaitDollarPrice     UserState = "ADMIN_WAIT_DOLLAR_PRICE"  // انتظار قیمت روز دلار
 
+	StateAdminWaitForceJoinData UserState = "ADMIN_WAIT_FORCEJOIN_DATA" // انتظار لینک و آیدی کانال اجباری
+	StateAdminWaitTaskPenalty   UserState = "ADMIN_WAIT_TASK_PENALTY"   // انتظار مبلغ جریمه تسک
+	StateAdminWaitTaskCapacity  UserState = "ADMIN_WAIT_TASK_CAPACITY"  // انتظار ظرفیت جدید تسک
+
 )
 
 // Tenant (موجودیت اصلی برای معماری SaaS)
@@ -117,13 +121,13 @@ type User struct {
 	Language                string  // زبان انتخابی کاربر برای نمایش متون[cite: 1]
 	CurrentWithdrawCurrency string  // ذخیره نوع ارز درخواستی برای برداشت (STARS یا GIFT)
 	CurrentWithdrawAmount   float64 // ذخیره مقدار درخواستی برای برداشت
-
-	AdminTargetUserID     uint   // آیدی کاربری که ادمین در حال ویرایش اوست
-	AdminTargetSetting    string // نام تنظیمی که ادمین در حال ویرایش آن است
-	AdminTargetAction     string // نوع عملیات ادمین (مثل کسر یا افزایش)
-	AdminTargetCategoryID uint
-	LastActiveDate        time.Time // تاریخ آخرین فعالیت برای محاسبه قانون ۱۰ روز خاموشی و تخصیص ۵۰٪ امتیاز به معرف جدید[cite: 1]
-	State                 UserState `gorm:"default:'NORMAL'"` // برای جلوگیری از باز شدن چند بخش همزمان
+	AdminTargetTaskID       uint
+	AdminTargetUserID       uint   // آیدی کاربری که ادمین در حال ویرایش اوست
+	AdminTargetSetting      string // نام تنظیمی که ادمین در حال ویرایش آن است
+	AdminTargetAction       string // نوع عملیات ادمین (مثل کسر یا افزایش)
+	AdminTargetCategoryID   uint
+	LastActiveDate          time.Time // تاریخ آخرین فعالیت برای محاسبه قانون ۱۰ روز خاموشی و تخصیص ۵۰٪ امتیاز به معرف جدید[cite: 1]
+	State                   UserState `gorm:"default:'NORMAL'"` // برای جلوگیری از باز شدن چند بخش همزمان
 }
 
 // Referral (سیستم رفرال‌های ۴ گانه)
