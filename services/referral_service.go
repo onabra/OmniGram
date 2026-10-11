@@ -3,6 +3,7 @@ package services
 import (
 	"OmniGram/domain"
 	"OmniGram/repository"
+	"fmt"
 )
 
 // MessageSender یک اینترفیس برای جلوگیری از وابستگی مستقیم به SafeBot
@@ -62,26 +63,36 @@ func (s *ReferralService) ApproveReferral(tenantID uint, referredUserID uint) er
 		return err
 	}
 
-	var rewardPoint float64 = 0
-	var rewardStars float64 = 0
-
-	switch referral.ReferralType {
-	case "stars":
-		rewardStars = 1.0
-	case "league", "lottery":
-		rewardPoint = 1.0
-	case "gift":
-		rewardPoint = 2.0
-	}
-
-	err = s.UserRepo.AddBalances(tenantID, referral.ReferrerID, 0, rewardPoint, rewardStars)
+	referrerUser, err := s.UserRepo.GetUserByID(tenantID, referral.ReferrerID)
 	if err != nil {
 		return err
 	}
 
-	referrerUser, err := s.UserRepo.GetUserByID(tenantID, referral.ReferrerID)
-	if err == nil && s.BotClient != nil {
-		successMsg := "تسک‌های زیرمجموعه شما تایید شد و پاداش بخش " + referral.ReferralType + " واریز گردید."
+	successMsg := "✅ یک زیرمجموعه جدید برای شما تایید شد:\n\n"
+
+	switch referral.ReferralType {
+	case "league":
+		successMsg += "🏆 شما یک رفرال معتبر در **لیگ** کسب کردید!"
+	case "draw":
+		stats, _ := s.RefRepo.GetReferralStats(tenantID, referral.ReferrerID)
+		if stats.DrawTotal > 0 && stats.DrawTotal%3 == 0 {
+			referrerUser.DrawTickets += 1
+			_ = s.UserRepo.UpdateDrawTickets(tenantID, referrerUser.ID, referrerUser.DrawTickets)
+			successMsg += "🎰 شما 1 تیکت قرعه‌کشی جدید دریافت کردید! 🎟"
+		} else {
+			successMsg += fmt.Sprintf("🎰 رفرال قرعه‌کشی ثبت شد. (%d رفرال تا دریافت تیکت بعدی)", 3-(stats.DrawTotal%3))
+		}
+	case "point":
+		referrerUser.PointBalance += 1.0
+		_ = s.UserRepo.UpdateBalances(tenantID, referrerUser.ID, referrerUser.TomanBalance, referrerUser.PointBalance, referrerUser.StarsBalance)
+		successMsg += "⭐ شما ۱ امتیاز دریافت کردید!"
+	case "wallet":
+		referrerUser.TomanBalance += 2000.0 // این مبلغ می‌تواند در آینده از تنظیمات ادمین خوانده شود
+		_ = s.UserRepo.UpdateBalances(tenantID, referrerUser.ID, referrerUser.TomanBalance, referrerUser.PointBalance, referrerUser.StarsBalance)
+		successMsg += "💰 مبلغ 2,000 تومان به کیف پول شما اضافه شد!"
+	}
+
+	if s.BotClient != nil {
 		_ = s.BotClient.SendMessage(referrerUser.TelegramID, successMsg)
 	}
 

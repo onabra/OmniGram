@@ -9,6 +9,10 @@ import (
 
 // ReferralStats ساختار برای خروجی آمار رفرال
 type ReferralStats struct {
+	LeagueTotal   int64
+	DrawTotal     int64
+	PointTotal    int64
+	WalletTotal   int64
 	TotalInvited  int64
 	Approved      int64
 	InactiveUsers int64
@@ -53,21 +57,15 @@ func (r *ReferralRepository) GetReferrer(tenantID uint, referredID uint) (*domai
 	return &referral, nil
 }
 
-// GetReferralStats دریافت آمار سه‌گانه رفرال برای یک کاربر
+// GetReferralStats دریافت آمار تفکیک شده رفرال‌های ۴ گانه برای یک کاربر
 func (r *ReferralRepository) GetReferralStats(tenantID uint, referrerID uint) (*ReferralStats, error) {
 	stats := &ReferralStats{}
 
-	// 1. تعداد کل دعوت شده‌ها
-	r.db.Model(&domain.Referral{}).
-		Where("tenant_id = ? AND referrer_id = ?", tenantID, referrerID).
-		Count(&stats.TotalInvited)
+	r.db.Model(&domain.Referral{}).Where("tenant_id = ? AND referrer_id = ? AND status = ? AND referral_type = ?", tenantID, referrerID, "APPROVED", "league").Count(&stats.LeagueTotal)
+	r.db.Model(&domain.Referral{}).Where("tenant_id = ? AND referrer_id = ? AND status = ? AND referral_type = ?", tenantID, referrerID, "APPROVED", "draw").Count(&stats.DrawTotal)
+	r.db.Model(&domain.Referral{}).Where("tenant_id = ? AND referrer_id = ? AND status = ? AND referral_type = ?", tenantID, referrerID, "APPROVED", "point").Count(&stats.PointTotal)
+	r.db.Model(&domain.Referral{}).Where("tenant_id = ? AND referrer_id = ? AND status = ? AND referral_type = ?", tenantID, referrerID, "APPROVED", "wallet").Count(&stats.WalletTotal)
 
-	// 2. تعداد تایید شده‌ها
-	r.db.Model(&domain.Referral{}).
-		Where("tenant_id = ? AND referrer_id = ? AND status = ?", tenantID, referrerID, "APPROVED").
-		Count(&stats.Approved)
-
-	// 3. تعداد غیرفعال‌ها (بیشتر از 10 روز)
 	tenDaysAgo := time.Now().AddDate(0, 0, -10)
 	r.db.Table("referrals").
 		Joins("JOIN users ON users.id = referrals.referred_id").

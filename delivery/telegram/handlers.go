@@ -319,11 +319,27 @@ func (h *BotHandler) HandleMessage(tenant *domain.Tenant, chatID int64, text str
 		if currentUser != nil {
 			stats, err := h.ReferralRepo.GetReferralStats(tenant.ID, currentUser.ID)
 			if err == nil && stats != nil {
-				statsTemplate := getText("msg_ref_stats_template", "📊 آمار زیرمجموعه‌های شما:\n\n👥 کل دعوت شده‌ها: %v\n✅ تایید شده‌ها: %v\n💤 غیرفعال (بیش از ۱۰ روز): %v")
+				botUsername := h.SafeBot.Bot.Self.UserName
+				dashboardMsg := fmt.Sprintf("👥 *داشبورد رفرال‌های شما*\n\n"+
+					"🏆 *رفرال لیگ*: %d نفر\n"+
+					"🔗 لینک: `https://t.me/%s?start=league_%d`\n\n"+
+					"🎰 *رفرال قرعه‌کشی*: %d نفر\n"+
+					"🔗 لینک: `https://t.me/%s?start=draw_%d`\n\n"+
+					"⭐ *رفرال امتیاز*: %d نفر\n"+
+					"🔗 لینک: `https://t.me/%s?start=point_%d`\n\n"+
+					"💰 *رفرال کیف پول*: %d نفر\n"+
+					"🔗 لینک: `https://t.me/%s?start=wallet_%d`\n\n"+
+					"➖➖➖➖➖➖➖\n"+
+					"🎟 *تیکت‌های شما*: %d\n"+
+					"💤 زیرمجموعه‌های غیرفعال: %d",
+					stats.LeagueTotal, botUsername, currentUser.ID,
+					stats.DrawTotal, botUsername, currentUser.ID,
+					stats.PointTotal, botUsername, currentUser.ID,
+					stats.WalletTotal, botUsername, currentUser.ID,
+					currentUser.DrawTickets, stats.InactiveUsers)
 
-				msgText := fmt.Sprintf(statsTemplate, stats.TotalInvited, stats.Approved, stats.InactiveUsers)
-
-				msg := tgbotapi.NewMessage(chatID, msgText)
+				msg := tgbotapi.NewMessage(chatID, dashboardMsg)
+				msg.ParseMode = "Markdown"
 				_, _ = h.SafeBot.Bot.Send(msg)
 			}
 		}
@@ -427,11 +443,29 @@ func (h *BotHandler) HandleMessage(tenant *domain.Tenant, chatID int64, text str
 
 	default:
 		if strings.HasPrefix(text, "انتقال") && currentUser != nil && h.WalletService != nil {
+			// پردازش لینک‌های رفرال ۴ گانه مستقل (در صورت وجود)
 			parts := strings.Split(text, " ")
-			if len(parts) != 4 {
-				_ = h.SafeBot.SendMessage(chatID, "فرمت دستور اشتباه است. روی دکمه انتقال کلیک کنید تا راهنما را ببینید.")
-				return
+			if len(parts) > 1 {
+				payload := parts[1] // نمونه: league_123456
+				payloadParts := strings.Split(payload, "_")
+
+				if len(payloadParts) == 2 {
+					refType := payloadParts[0] // باید یکی از این ۴ مقدار باشد: league, draw, point, wallet
+					referrerID, err := strconv.ParseUint(payloadParts[1], 10, 32)
+
+					if err == nil && (refType == "league" || refType == "draw" || refType == "point" || refType == "wallet") {
+						if h.ReferralService != nil {
+							// ثبت رفرال به صورت معلق (PENDING)
+							_ = h.ReferralService.ProcessReferral(tenant.ID, uint(referrerID), chatID, refType)
+						}
+					}
+				}
 			}
+			//parts := strings.Split(text, " ")
+			//if len(parts) != 4 {
+			//	_ = h.SafeBot.SendMessage(chatID, "فرمت دستور اشتباه است. روی دکمه انتقال کلیک کنید تا راهنما را ببینید.")
+			//	return
+			//}
 
 			destTelegramID, errID := strconv.ParseInt(parts[1], 10, 64)
 			amount, errAmount := strconv.ParseFloat(parts[2], 64)

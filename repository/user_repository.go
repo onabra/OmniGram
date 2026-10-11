@@ -15,6 +15,8 @@ type UserRepository interface {
 
 	GetUserByID(tenantID uint, id uint) (*domain.User, error)
 	AddBalances(tenantID uint, userID uint, toman, point, stars float64) error
+
+	UpdateDrawTickets(tenantID uint, userID uint, tickets int) error
 }
 
 type userRepository struct {
@@ -78,4 +80,11 @@ func (r *userRepository) UpdateUserState(tenantID uint, userID uint, state domai
 	return r.db.Model(&domain.User{}).
 		Where("tenant_id = ? AND id = ?", tenantID, userID).
 		Update("state", state).Error
+}
+
+// UpdateDrawTickets بروزرسانی تعداد تیکت‌های کاربر
+func (r *userRepository) UpdateDrawTickets(tenantID uint, userID uint, tickets int) error {
+	return r.db.Model(&domain.User{}).
+		Where("id = ? AND tenant_id = ?", userID, tenantID).
+		Update("draw_tickets", tickets).Error
 }
