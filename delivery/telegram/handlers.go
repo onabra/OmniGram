@@ -164,6 +164,48 @@ func (h *BotHandler) HandleMessage(tenant *domain.Tenant, chatID int64, text str
 		}
 	}
 
+	// --- سیستم مدیریت پشتیبانی و پاسخ به تیکت ---
+	if currentUser.State == domain.StateAdminWaitTicketReply {
+		if text == backMainBtnText {
+			_ = h.UserRepo.UpdateUserState(tenant.ID, currentUser.ID, domain.StateNormal)
+		} else {
+			ticket, _ := h.TicketRepo.GetTicketByID(tenant.ID, currentUser.AdminTargetTicketID)
+			if ticket != nil {
+				// تغییر وضعیت تیکت
+				ticket.Status = "ANSWERED"
+				_ = h.TicketRepo.UpdateStatus(ticket)
+
+				// ذخیره پیام ادمین
+				replyMsg := &domain.SupportMessage{
+					TicketID: ticket.ID,
+					SenderID: chatID,
+					IsAdmin:  true,
+					Text:     text,
+				}
+				_ = h.TicketRepo.SaveMessage(replyMsg)
+
+				// ارسال به کاربر
+				targetUser, _ := h.UserRepo.GetUserByID(tenant.ID, ticket.UserID)
+				if targetUser != nil {
+					userNotif := fmt.Sprintf("🎧 *پاسخ پشتیبانی به تیکت شما*\n\nپاسخ ادمین:\n`%s`", text)
+					_ = h.SafeBot.SendMessage(targetUser.TelegramID, userNotif)
+				}
+
+				_ = h.SafeBot.SendMessage(chatID, "✅ پاسخ شما با موفقیت برای کاربر ارسال شد و تیکت بسته شد.")
+			}
+			_ = h.UserRepo.UpdateUserState(tenant.ID, currentUser.ID, domain.StateNormal)
+			return
+		}
+	}
+
+	// --- سیستم پردازش پیام همگانی ---
+	if currentUser.State == domain.StateAdminWaitBroadcastMsg {
+		if text == backMainBtnText {
+			_ = h.UserRepo.UpdateUserState(tenant.ID, currentUser.ID, domain.StateNormal)
+			return
+		}
+	}
+
 	if currentUser.State == domain.StateAdminWaitBalanceAmount {
 		if text == backMainBtnText {
 			_ = h.UserRepo.UpdateUserState(tenant.ID, currentUser.ID, domain.StateNormal)

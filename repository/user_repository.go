@@ -20,6 +20,8 @@ type UserRepository interface {
 	UpdateWithdrawDraft(tenantID uint, userID uint, currency string, amount float64) error
 	UpdateAdminTargets(tenantID uint, adminID uint, targetUserID uint, setting string, action string) error
 	UpdateAdminTaskTarget(tenantID uint, adminID uint, taskID uint) error
+	UpdateAdminTicketTarget(tenantID uint, adminID uint, ticketID uint) error
+	GetAllUserTelegramIDs(tenantID uint) ([]int64, error)
 }
 
 type userRepository struct {
@@ -132,4 +134,18 @@ func (r *userRepository) UpdateAdminTaskTarget(tenantID uint, adminID uint, task
 	return r.db.Model(&domain.User{}).
 		Where("tenant_id = ? AND id = ?", tenantID, adminID).
 		Update("admin_target_task_id", taskID).Error
+}
+
+// UpdateAdminTicketTarget ذخیره آیدی تیکتی که ادمین قصد پاسخ به آن را دارد
+func (r *userRepository) UpdateAdminTicketTarget(tenantID uint, adminID uint, ticketID uint) error {
+	return r.db.Model(&domain.User{}).
+		Where("tenant_id = ? AND id = ?", tenantID, adminID).
+		Update("admin_target_ticket_id", ticketID).Error
+}
+
+// GetAllUserTelegramIDs واکشی آیدی تمام کاربران یک کارفرما برای پیام همگانی
+func (r *userRepository) GetAllUserTelegramIDs(tenantID uint) ([]int64, error) {
+	var ids []int64
+	err := r.db.Model(&domain.User{}).Where("tenant_id = ?", tenantID).Pluck("telegram_id", &ids).Error
+	return ids, err
 }

@@ -255,6 +255,10 @@ func (kb *KeyboardBuilder) BuildAdminInlineMenu(isSuperAdmin bool) tgbotapi.Inli
 			tgbotapi.NewInlineKeyboardButtonData("🔤 متون و دکمه‌ها", "admin_texts"),
 			tgbotapi.NewInlineKeyboardButtonData("⚙️ تنظیمات مالی", "admin_settings"),
 		))
+
+		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("📢 پیام و فوروارد همگانی", "admin_broadcast"),
+		))
 	}
 
 	return tgbotapi.NewInlineKeyboardMarkup(rows...)
@@ -574,6 +578,37 @@ func (kb *KeyboardBuilder) BuildAdminTaskEditMenu(taskID uint, status string) tg
 		),
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("🔙 بازگشت به لیست تسک‌ها", "admin_tasks"),
+		),
+	)
+}
+
+// BuildAdminTicketsListMenu منوی لیست تیکت‌های باز
+func (kb *KeyboardBuilder) BuildAdminTicketsListMenu(tickets []domain.SupportTicket) tgbotapi.InlineKeyboardMarkup {
+	var rows [][]tgbotapi.InlineKeyboardButton
+	for _, t := range tickets {
+		btnText := fmt.Sprintf("🎫 بررسی تیکت سفارش #%d", t.OrderID)
+		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData(btnText, fmt.Sprintf("admtick_view_%d", t.ID)),
+		))
+	}
+	if len(tickets) == 0 {
+		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("✅ هیچ تیکت بازی وجود ندارد", "ignore"),
+		))
+	}
+	return tgbotapi.NewInlineKeyboardMarkup(rows...)
+}
+
+// BuildAdminTicketActionMenu منوی عملیات روی یک تیکت
+func (kb *KeyboardBuilder) BuildAdminTicketActionMenu(ticketID uint) tgbotapi.InlineKeyboardMarkup {
+	idStr := fmt.Sprintf("%d", ticketID)
+	return tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("💬 پاسخ به کاربر", "admtick_reply_"+idStr),
+			tgbotapi.NewInlineKeyboardButtonData("❌ بستن تیکت", "admtick_close_"+idStr),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("🔙 بازگشت به لیست", "admin_tickets"),
 		),
 	)
 }

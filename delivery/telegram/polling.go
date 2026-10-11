@@ -2,9 +2,11 @@ package telegram
 
 import (
 	"OmniGram/core"
+	"OmniGram/domain"
 	"fmt"
 	"log"
 	"runtime/debug"
+	"time"
 
 	"OmniGram/repository"
 	"OmniGram/services"
@@ -133,6 +135,22 @@ func (h *PollingHandler) processUpdateWithRecovery(update tgbotapi.Update) {
 			CategoryRepo:    h.CategoryRepo, // تزریق شده از بلوک‌های تکراری
 		}
 
+		adminUser, _ := botHandler.UserRepo.GetUserByTelegramID(tenant.ID, chatID)
+		if adminUser != nil && adminUser.State == domain.StateAdminWaitBroadcastMsg {
+			if update.Message.Text == "بازگشت به منوی اصلی" {
+				_ = botHandler.UserRepo.UpdateUserState(tenant.ID, adminUser.ID, domain.StateNormal)
+				botHandler.HandleMessage(tenant, chatID, update.Message.Text, lang)
+				return
+			}
+
+			// خروج از وضعیت
+			_ = botHandler.UserRepo.UpdateUserState(tenant.ID, adminUser.ID, domain.StateNormal)
+
+			// اجرای Goroutine مستقل برای ارسال همگانی
+			go botHandler.RunBroadcast(tenant.ID, chatID, update.Message)
+			return
+		}
+
 		if update.Message.Command() == "start" {
 			botHandler.HandleStart(tenant, chatID, lang, update.Message.Text)
 		} else if update.Message.Photo != nil {
@@ -141,4 +159,44 @@ func (h *PollingHandler) processUpdateWithRecovery(update tgbotapi.Update) {
 			botHandler.HandleMessage(tenant, chatID, update.Message.Text, lang)
 		}
 	}
+}
+
+// RunBroadcast صف‌بندی ایمن و اجرای ارسال همگانی در یک Goroutine کاملاً مستقل
+func (h *BotHandler) RunBroadcast(tenantID uint, adminChatID int64, msgToBroadcast *tgbotapi.Message) {
+	userIDs, err := h.UserRepo.GetAllUserTelegramIDs(tenantID)
+	if err != nil || len(userIDs) == 0 {
+		_ = h.SafeBot.SendMessage(adminChatID, "❌ کاربری در دیتابیس برای ارسال پیام یافت نشد.")
+		return
+	}
+
+	_ = h.SafeBot.SendMessage(adminChatID, fmt.Sprintf("⏳ عملیات پیام همگانی برای %d کاربر آغاز شد...\n\nاین فرآیند به صورت پس‌زمینه (Background) و با رعایت محدودیت‌های تلگرام انجام می‌شود تا ربات بلاک نشود. لطفاً صبور باشید.", len(userIDs)))
+
+	success := 0
+	failed := 0
+
+	for _, uid := range userIDs {
+		var req tgbotapi.Chattable
+
+		// اگر پیام فوروارد شده بود، با همون استایل فوروارد می‌فرستیم
+		if msgToBroadcast.ForwardFrom != nil || msgToBroadcast.ForwardFromChat != nil {
+			req = tgbotapi.NewForward(uid, msgToBroadcast.Chat.ID, msgToBroadcast.MessageID)
+		} else {
+			// اگر محتوای تولیدی خودش بود (متن، عکس، ویدیو، دکمه و...)، از CopyMessage استفاده می‌کنیم تا دقیقاً مشابهش بدون تگ فوروارد ارسال شود
+			req = tgbotapi.NewCopyMessage(uid, msgToBroadcast.Chat.ID, msgToBroadcast.MessageID)
+		}
+
+		_, err := h.SafeBot.Bot.Request(req)
+		if err != nil {
+			failed++
+		} else {
+			success++
+		}
+
+		// مهم‌ترین بخش: جلوگیری از ارور Flood Wait (محدودیت تلگرام 30 پیام در ثانیه است. با 40 میلی‌ثانیه روی 25 تنظیم می‌کنیم)
+		time.Sleep(40 * time.Millisecond)
+	}
+
+	// گزارش پایان کار به ادمین
+	resultMsg := fmt.Sprintf("✅ *پایان پیام همگانی*\n\n👥 کل مخاطبین: %d\n🟢 ارسال موفق: %d\n🔴 ناموفق (بلاک کرده‌ها): %d", len(userIDs), success, failed)
+	_ = h.SafeBot.SendMessage(adminChatID, resultMsg)
 }

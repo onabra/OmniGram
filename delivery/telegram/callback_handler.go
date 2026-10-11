@@ -896,8 +896,22 @@ func (h *PollingHandler) HandleCallback(tenant *domain.Tenant, update tgbotapi.U
 			return
 
 		case action == "tickets":
-			// TODO: فراخوانی تیکت‌های پشتیبانی
-			h.SafeBot.SafeAnswerCallback(callback.ID, "در حال بارگذاری تیکت‌ها...", false)
+			if isSuper || isAdmin {
+				tickets, _ := h.TicketRepo.GetOpenTickets(tenant.ID)
+				markup := h.KeyboardBuilder.BuildAdminTicketsListMenu(tickets)
+				h.SafeBot.SafeEditText(chatID, messageID, "🎫 *پشتیبانی و تیکت‌ها*\n\nلیست تیکت‌های در انتظار پاسخ در زیر نمایش داده شده است. جهت بررسی روی آن‌ها کلیک کنید:", &markup)
+			}
+			return
+
+		case action == "broadcast":
+			if isSuper {
+				_ = h.UserRepo.UpdateUserState(tenant.ID, user.ID, domain.StateAdminWaitBroadcastMsg)
+				h.SafeBot.SafeAnswerCallback(callback.ID, "ارسال پیام همگانی...", false)
+				msg := tgbotapi.NewMessage(chatID, "📢 *ارسال پیام همگانی*\n\nلطفاً پیام خود را (متن، عکس، ویدیو، یا فوروارد) دقیقاً در همین‌جا ارسال کنید.\nربات با استفاده از سیستم صف‌بندی (Worker) پیام را برای تمام کاربران ارسال خواهد کرد.")
+				msg.ParseMode = "Markdown"
+				_, _ = h.SafeBot.Bot.Send(msg)
+			}
+			return
 
 		case action == "users":
 			if isSuper {
@@ -1178,6 +1192,57 @@ func (h *PollingHandler) HandleCallback(tenant *domain.Tenant, update tgbotapi.U
 			msgText := fmt.Sprintf("📝 *ویرایش تسک*\n\n📌 عنوان: %s\n👥 ظرفیت فعلی: %d\n💰 پاداش عضویت: %.0f %s\n⚖️ جریمه لفت دادن: %.0f\nوضعیت: **%s**\n\nعملیات مورد نظر را انتخاب کنید:",
 				task.Title, task.Capacity, task.RewardAmount, task.RewardType, task.PenaltyAmount, task.Status)
 			h.SafeBot.SafeEditText(chatID, messageID, msgText, &markup)
+		}
+		return
+	}
+
+	// مدیریت عملیات‌های پشتیبانی و تیکت (ادمین)
+	if strings.HasPrefix(data, "admtick_") {
+		if !botHandlerTemp.IsSuperAdmin(chatID) && !botHandlerTemp.IsAdmin(chatID) {
+			return
+		}
+		parts := strings.Split(data, "_")
+		if len(parts) < 3 {
+			return
+		}
+		action := parts[1] // view, reply, close
+		ticketID, _ := strconv.Atoi(parts[2])
+
+		ticket, err := h.TicketRepo.GetTicketByID(tenant.ID, uint(ticketID))
+		if err != nil {
+			h.SafeBot.SafeAnswerCallback(callback.ID, "❌ تیکت یافت نشد.", true)
+			return
+		}
+		user, _ := h.UserRepo.GetUserByTelegramID(tenant.ID, chatID)
+
+		switch action {
+		case "view":
+			msgs, _ := h.TicketRepo.GetTicketMessages(ticket.ID)
+			userText := "متنی ثبت نشده است."
+			if len(msgs) > 0 {
+				userText = msgs[0].Text // گرفتن اولین پیام کاربر
+			}
+
+			order, _ := h.OrderRepo.GetOrderByID(tenant.ID, ticket.OrderID)
+			msgText := fmt.Sprintf("🎫 *بررسی تیکت*\n\nشماره سفارش: `%s`\nوضعیت سفارش: %s\n\n📝 *متن مشکل کاربر:*\n`%s`\n\nجهت پاسخگویی از منوی زیر استفاده کنید:", order.TrackingCode, order.Status, userText)
+			markup := h.KeyboardBuilder.BuildAdminTicketActionMenu(ticket.ID)
+			h.SafeBot.SafeEditText(chatID, messageID, msgText, &markup)
+
+		case "reply":
+			_ = h.UserRepo.UpdateAdminTicketTarget(tenant.ID, user.ID, ticket.ID)
+			_ = h.UserRepo.UpdateUserState(tenant.ID, user.ID, domain.StateAdminWaitTicketReply)
+			h.SafeBot.SafeAnswerCallback(callback.ID, "لطفاً پاسخ را تایپ کنید.", false)
+			_, _ = h.SafeBot.Bot.Send(tgbotapi.NewMessage(chatID, "💬 لطفاً پاسخ خود را به این کاربر تایپ کرده و ارسال کنید:"))
+
+		case "close":
+			ticket.Status = "CLOSED"
+			_ = h.TicketRepo.UpdateStatus(ticket)
+			h.SafeBot.SafeAnswerCallback(callback.ID, "تیکت بسته شد.", false)
+
+			// بازگشت خودکار به لیست تیکت‌ها
+			tickets, _ := h.TicketRepo.GetOpenTickets(tenant.ID)
+			markup := h.KeyboardBuilder.BuildAdminTicketsListMenu(tickets)
+			h.SafeBot.SafeEditText(chatID, messageID, "✅ تیکت بسته شد.\n\n🎫 *تیکت‌های در انتظار پاسخ:*", &markup)
 		}
 		return
 	}

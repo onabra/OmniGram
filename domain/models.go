@@ -45,6 +45,9 @@ const (
 	StateAdminWaitTaskPenalty   UserState = "ADMIN_WAIT_TASK_PENALTY"   // انتظار مبلغ جریمه تسک
 	StateAdminWaitTaskCapacity  UserState = "ADMIN_WAIT_TASK_CAPACITY"  // انتظار ظرفیت جدید تسک
 
+	StateAdminWaitTicketReply  UserState = "ADMIN_WAIT_TICKET_REPLY"  // انتظار پاسخ ادمین به تیکت کاربر
+	StateAdminWaitBroadcastMsg UserState = "ADMIN_WAIT_BROADCAST_MSG" // انتظار ارسال پیام یا فوروارد برای ارسال همگانی
+
 )
 
 // Tenant (موجودیت اصلی برای معماری SaaS)
@@ -122,6 +125,7 @@ type User struct {
 	CurrentWithdrawCurrency string  // ذخیره نوع ارز درخواستی برای برداشت (STARS یا GIFT)
 	CurrentWithdrawAmount   float64 // ذخیره مقدار درخواستی برای برداشت
 	AdminTargetTaskID       uint
+	AdminTargetTicketID     uint
 	AdminTargetUserID       uint   // آیدی کاربری که ادمین در حال ویرایش اوست
 	AdminTargetSetting      string // نام تنظیمی که ادمین در حال ویرایش آن است
 	AdminTargetAction       string // نوع عملیات ادمین (مثل کسر یا افزایش)
