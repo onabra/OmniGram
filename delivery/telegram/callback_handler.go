@@ -745,6 +745,151 @@ func (h *PollingHandler) HandleCallback(tenant *domain.Tenant, update tgbotapi.U
 		}
 	}
 
+	// [delivery/telegram/callback_handler.go]
+	// --- سیستم پردازش منوهای لیگ و مسابقات ---
+	if strings.HasPrefix(data, "league_") {
+		action := strings.TrimPrefix(data, "league_")
+		user, _ := h.UserRepo.GetUserByTelegramID(tenant.ID, chatID)
+		if user == nil {
+			return
+		}
+
+		switch action {
+		case "main":
+			markup := h.KeyboardBuilder.BuildLeagueMainMenu()
+			msgText := "🏆 *بخش مسابقات و برترین‌ها*\n\nبه سیستم رقابتی ربات خوش آمدید! لطفاً یکی از بخش‌های زیر را انتخاب کنید:"
+			h.SafeBot.SafeEditText(chatID, messageID, msgText, &markup)
+
+		case "customers":
+			rankings, _ := h.OrderRepo.GetCustomerRankingsLast30Days(tenant.ID)
+
+			var msgText strings.Builder
+			msgText.WriteString("🏆 *برترین مشتریان 30 روز گذشته*\n\n")
+
+			userRank := 0
+			var userSpent float64 = 0
+
+			for i, rank := range rankings {
+				if rank.UserID == user.ID {
+					userRank = i + 1
+					userSpent = rank.TotalSpent
+				}
+
+				if i < 10 { // نمایش فقط ۱۰ نفر برتر
+					emoji := "🎖"
+					switch i {
+					case 0:
+						emoji = "🥇"
+					case 1:
+						emoji = "🥈"
+					case 2:
+						emoji = "🥉"
+					case 3:
+						emoji = "🎗"
+					case 4:
+						emoji = "⭐"
+					default:
+						emoji = fmt.Sprintf("%d️⃣", i+1)
+					}
+					msgText.WriteString(fmt.Sprintf("%s %s — %.0f تومان\n", emoji, rank.FirstName, rank.TotalSpent))
+				}
+			}
+
+			msgText.WriteString("\n")
+			if userRank > 0 {
+				msgText.WriteString(fmt.Sprintf("👤 رتبهٔ شما: #%d — مجموع خرید: %.0f\n\n", userRank, userSpent))
+			} else {
+				msgText.WriteString("👤 رتبهٔ شما: خارج از رتبه‌بندی — مجموع خرید: 0\n\n")
+			}
+
+			msgText.WriteString("💸 *تخفیف هوشمند بر اساس رتبه:*\n🥇 رتبهٔ 1: 5%\n🥈 رتبهٔ 2: 4%\n🥉 رتبهٔ 3: 3%\n🎗 رتبهٔ 4: 2%\n⭐ رتبهٔ 5: 1%")
+
+			markup := tgbotapi.NewInlineKeyboardMarkup(tgbotapi.NewInlineKeyboardRow(tgbotapi.NewInlineKeyboardButtonData("🔙 بازگشت", "league_main")))
+			h.SafeBot.SafeEditText(chatID, messageID, msgText.String(), &markup)
+
+		case "referrals":
+			rankings, _ := h.RefRepo.GetLeagueRankings(tenant.ID)
+			var msgText strings.Builder
+			msgText.WriteString("🏆 *جدول رتبه‌بندی لیگ رفرال (Season 1)*\n\n")
+
+			userRank := 0
+			var userInvites int64 = 0
+			var userPoints int64 = 0
+
+			// تابع محاسبه امتیاز Milestone کارفرما
+			calculatePoints := func(invites int64) int64 {
+				pts := invites // 1 امتیاز پایه برای هر دعوت
+				if invites >= 25 {
+					pts += 50
+				} else if invites >= 10 {
+					pts += 15
+				} else if invites >= 5 {
+					pts += 5
+				}
+				return pts
+			}
+
+			for i, rank := range rankings {
+				pts := calculatePoints(rank.InviteCount)
+				if rank.UserID == user.ID {
+					userRank = i + 1
+					userInvites = rank.InviteCount
+					userPoints = pts
+				}
+
+				if i < 10 {
+					emoji := "🎖"
+					switch i {
+					case 0:
+						emoji = "🥇"
+					case 1:
+						emoji = "🥈"
+					case 2:
+						emoji = "🥉"
+					}
+					msgText.WriteString(fmt.Sprintf("%s %s | 👥 %d | ⭐ %d امتیاز\n", emoji, rank.FirstName, rank.InviteCount, pts))
+				}
+			}
+
+			msgText.WriteString("\n")
+			if userRank > 0 {
+				msgText.WriteString(fmt.Sprintf("👤 رتبهٔ شما: #%d\n👥 دعوت موفق: %d\n⭐ امتیاز لیگ: %d\n\n", userRank, userInvites, userPoints))
+			} else {
+				msgText.WriteString("👤 رتبهٔ شما: خارج از رتبه‌بندی\n\n")
+			}
+
+			msgText.WriteString("🎁 *پاداش‌های Milestone:*\nدعوت اول: ۱ امتیاز\n۵ دعوت: ۵+ امتیاز جایزه\n۱۰ دعوت: ۱۵+ امتیاز جایزه\n۲۵ دعوت: ۵۰+ امتیاز جایزه")
+
+			markup := tgbotapi.NewInlineKeyboardMarkup(tgbotapi.NewInlineKeyboardRow(tgbotapi.NewInlineKeyboardButtonData("🔙 بازگشت", "league_main")))
+			h.SafeBot.SafeEditText(chatID, messageID, msgText.String(), &markup)
+
+		case "draws":
+			draws, err := h.DrawRepo.GetActiveDraws(tenant.ID)
+			if err != nil || len(draws) == 0 {
+				h.SafeBot.SafeAnswerCallback(callback.ID, "🏆 در حال حاضر مسابقه یا قرعه‌کشی فعالی وجود ندارد.", true)
+				return
+			}
+
+			h.SafeBot.SafeDeleteMessage(chatID, messageID) // پاک کردن منو برای ارسال لیست قرعه‌کشی‌ها
+
+			// ارسال پست جداگانه برای هر قرعه‌کشی
+			for _, draw := range draws {
+				totalEntries, _ := h.DrawRepo.GetTotalEntries(tenant.ID, draw.ID)
+				endDate := draw.EndDate.Format("2006-01-02 15:04")
+
+				msgText := fmt.Sprintf("🎰 *%s*\n\n📝 توضیحات: %s\n\n🎟 هزینه ورود: %d تیکت\n🏆 تعداد برندگان: %d نفر\n🎁 جایزه هر برنده: %.0f %s\n👥 شانس‌های ثبت شده: %d / %d\n\n⏱ پایان: %s",
+					draw.Title, draw.Description, draw.TicketCost, draw.WinnersCount, draw.RewardPerWinner, draw.RewardType, totalEntries, draw.MaxParticipants, endDate)
+
+				markup := h.KeyboardBuilder.BuildDrawActionMenu(draw.ID, draw.TicketCost)
+				msg := tgbotapi.NewMessage(chatID, msgText)
+				msg.ParseMode = "Markdown"
+				msg.ReplyMarkup = markup
+				_, _ = h.SafeBot.Bot.Send(msg)
+			}
+		}
+		return
+	}
+
 	// --- مسیریابی دکمه‌های پنل مدیریت ---
 	if strings.HasPrefix(data, "admin_") {
 		// بررسی امنیتی: آیا کسی که کلیک کرده واقعا ادمین است؟

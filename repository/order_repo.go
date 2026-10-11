@@ -11,6 +11,13 @@ type OrderRepository struct {
 	DB *gorm.DB
 }
 
+// TopCustomerResult ساختار خروجی مشتریان برتر
+type TopCustomerResult struct {
+	UserID     uint
+	FirstName  string
+	TotalSpent float64
+}
+
 // CreateOrder ثبت سفارش جدید
 func (r *OrderRepository) CreateOrder(order *domain.Order) error {
 	return r.DB.Create(order).Error
@@ -64,4 +71,18 @@ func (r *OrderRepository) GetUserTotalSpentLast30Days(tenantID uint, userID uint
 		Where("tenant_id = ? AND user_id = ? AND status = ? AND created_at >= ?", tenantID, userID, "COMPLETED", thirtyDaysAgo).
 		Select("COALESCE(SUM(total_amount), 0)").Scan(&total).Error
 	return total, err
+}
+
+// GetCustomerRankingsLast30Days واکشی و مرتب‌سازی تمام مشتریان بر اساس خرید ۳۰ روز گذشته
+func (r *OrderRepository) GetCustomerRankingsLast30Days(tenantID uint) ([]TopCustomerResult, error) {
+	var results []TopCustomerResult
+	thirtyDaysAgo := time.Now().AddDate(0, 0, -30)
+	err := r.DB.Table("orders").
+		Select("users.id as user_id, users.first_name, SUM(orders.total_amount) as total_spent").
+		Joins("JOIN users ON users.id = orders.user_id").
+		Where("orders.tenant_id = ? AND orders.status = ? AND orders.created_at >= ?", tenantID, "COMPLETED", thirtyDaysAgo).
+		Group("users.id, users.first_name").
+		Order("total_spent DESC").
+		Scan(&results).Error
+	return results, err
 }

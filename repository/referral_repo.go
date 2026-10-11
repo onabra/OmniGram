@@ -18,6 +18,13 @@ type ReferralStats struct {
 	InactiveUsers int64
 }
 
+// LeagueRankResult ساختار خروجی جدول رتبه‌بندی لیگ رفرال
+type LeagueRankResult struct {
+	UserID      uint
+	FirstName   string
+	InviteCount int64
+}
+
 type ReferralRepository struct {
 	db *gorm.DB
 }
@@ -74,4 +81,17 @@ func (r *ReferralRepository) GetReferralStats(tenantID uint, referrerID uint) (*
 		Count(&stats.InactiveUsers)
 
 	return stats, nil
+}
+
+// GetLeagueRankings واکشی لیست تمام شرکت‌کنندگان لیگ بر اساس تعداد دعوت
+func (r *ReferralRepository) GetLeagueRankings(tenantID uint) ([]LeagueRankResult, error) {
+	var results []LeagueRankResult
+	err := r.db.Table("referrals").
+		Select("users.id as user_id, users.first_name, COUNT(referrals.id) as invite_count").
+		Joins("JOIN users ON users.id = referrals.referrer_id").
+		Where("referrals.tenant_id = ? AND referrals.status = ? AND referrals.referral_type = ?", tenantID, "APPROVED", "league").
+		Group("users.id, users.first_name").
+		Order("invite_count DESC").
+		Scan(&results).Error
+	return results, err
 }

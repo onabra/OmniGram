@@ -712,30 +712,40 @@ func (h *BotHandler) HandleMessage(tenant *domain.Tenant, chatID int64, text str
 		msg.ReplyMarkup = accMenu // استفاده از کیبورد حساب کاربری برای داشتن دکمه بازگشت
 		_, _ = h.SafeBot.Bot.Send(msg)
 
+	//case btnRefLeague:
+	//	// واکشی قرعه‌کشی‌های فعال
+	//	draws, err := h.DrawRepo.GetActiveDraws(tenant.ID)
+	//	if err != nil || len(draws) == 0 {
+	//		_ = h.SafeBot.SendMessage(chatID, "🏆 در حال حاضر مسابقه یا قرعه‌کشی فعالی وجود ندارد. لطفاً بعداً سر بزنید.")
+	//		return
+	//	}
+	//
+	//	// ارسال پست جداگانه برای هر قرعه‌کشی
+	//	for _, draw := range draws {
+	//		totalEntries, _ := h.DrawRepo.GetTotalEntries(tenant.ID, draw.ID)
+	//
+	//		// تبدیل تاریخ میلادی به فرمت خواناتر (در نسخه‌های بعدی می‌توان شمسی کرد)
+	//		endDate := draw.EndDate.Format("2006-01-02 15:04")
+	//
+	//		msgText := fmt.Sprintf("🎰 *%s*\n\n📝 توضیحات: %s\n\n🎟 هزینه ورود: %d تیکت\n🏆 تعداد برندگان: %d نفر\n🎁 جایزه هر برنده: %.0f %s\n👥 تعداد شانس‌های ثبت شده: %d / %d\n\n⏱ پایان: %s",
+	//			draw.Title, draw.Description, draw.TicketCost, draw.WinnersCount, draw.RewardPerWinner, draw.RewardType, totalEntries, draw.MaxParticipants, endDate)
+	//
+	//		markup := h.KeyboardBuilder.BuildDrawActionMenu(draw.ID, draw.TicketCost)
+	//		msg := tgbotapi.NewMessage(chatID, msgText)
+	//		msg.ParseMode = "Markdown"
+	//		msg.ReplyMarkup = markup
+	//		_, _ = h.SafeBot.Bot.Send(msg)
+	//	}
+
 	case btnRefLeague:
-		// واکشی قرعه‌کشی‌های فعال
-		draws, err := h.DrawRepo.GetActiveDraws(tenant.ID)
-		if err != nil || len(draws) == 0 {
-			_ = h.SafeBot.SendMessage(chatID, "🏆 در حال حاضر مسابقه یا قرعه‌کشی فعالی وجود ندارد. لطفاً بعداً سر بزنید.")
-			return
-		}
+		// باز کردن منوی یکپارچه لیگ و مسابقات
+		markup := h.KeyboardBuilder.BuildLeagueMainMenu()
+		msgText := "🏆 *بخش مسابقات و برترین‌ها*\n\nبه سیستم رقابتی ربات خوش آمدید! لطفاً جهت مشاهده جداول رتبه‌بندی یا شرکت در مسابقات یکی از بخش‌های زیر را انتخاب کنید:"
 
-		// ارسال پست جداگانه برای هر قرعه‌کشی
-		for _, draw := range draws {
-			totalEntries, _ := h.DrawRepo.GetTotalEntries(tenant.ID, draw.ID)
-
-			// تبدیل تاریخ میلادی به فرمت خواناتر (در نسخه‌های بعدی می‌توان شمسی کرد)
-			endDate := draw.EndDate.Format("2006-01-02 15:04")
-
-			msgText := fmt.Sprintf("🎰 *%s*\n\n📝 توضیحات: %s\n\n🎟 هزینه ورود: %d تیکت\n🏆 تعداد برندگان: %d نفر\n🎁 جایزه هر برنده: %.0f %s\n👥 تعداد شانس‌های ثبت شده: %d / %d\n\n⏱ پایان: %s",
-				draw.Title, draw.Description, draw.TicketCost, draw.WinnersCount, draw.RewardPerWinner, draw.RewardType, totalEntries, draw.MaxParticipants, endDate)
-
-			markup := h.KeyboardBuilder.BuildDrawActionMenu(draw.ID, draw.TicketCost)
-			msg := tgbotapi.NewMessage(chatID, msgText)
-			msg.ParseMode = "Markdown"
-			msg.ReplyMarkup = markup
-			_, _ = h.SafeBot.Bot.Send(msg)
-		}
+		msg := tgbotapi.NewMessage(chatID, msgText)
+		msg.ParseMode = "Markdown"
+		msg.ReplyMarkup = markup
+		_, _ = h.SafeBot.Bot.Send(msg)
 
 	case devBtnText:
 		devDesc := getText("msg_dev_description", "متن معرفی توسعه دهنده")

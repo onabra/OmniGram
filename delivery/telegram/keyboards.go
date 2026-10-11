@@ -612,3 +612,16 @@ func (kb *KeyboardBuilder) BuildAdminTicketActionMenu(ticketID uint) tgbotapi.In
 		),
 	)
 }
+
+// BuildLeagueMainMenu منوی شیشه‌ای اصلی بخش مسابقات و برترین‌ها
+func (kb *KeyboardBuilder) BuildLeagueMainMenu() tgbotapi.InlineKeyboardMarkup {
+	return tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("🏆 رفرال لیگ (لیدربورد)", "league_referrals"),
+			tgbotapi.NewInlineKeyboardButtonData("🌟 برترین مشتریان (VIP)", "league_customers"),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("🎰 قرعه‌کشی‌های فعال", "league_draws"),
+		),
+	)
+}
