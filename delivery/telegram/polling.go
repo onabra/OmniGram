@@ -57,6 +57,12 @@ func (h *PollingHandler) StartPolling() {
 		h.Logger.AttachReporter(h.SafeBot)
 	}
 
+	commands := []tgbotapi.BotCommand{
+		{Command: "start", Description: "شروع ربات و نمایش منوی اصلی"},
+		{Command: "myid", Description: "دریافت آیدی عددی شما"},
+	}
+	_, _ = bot.Request(tgbotapi.NewSetMyCommands(commands...))
+
 	u := tgbotapi.NewUpdate(0)
 	u.Timeout = 60
 	updates := bot.GetUpdatesChan(u)
@@ -151,8 +157,22 @@ func (h *PollingHandler) processUpdateWithRecovery(update tgbotapi.Update) {
 			return
 		}
 
+		//if update.Message.Command() == "start" {
+		//	botHandler.HandleStart(tenant, chatID, lang, update.Message.Text)
+		//} else if update.Message.Photo != nil {
+		//	botHandler.HandlePhoto(tenant, update.Message, lang)
+		//} else if update.Message.Text != "" {
+		//	botHandler.HandleMessage(tenant, chatID, update.Message.Text, lang)
+		//}
+
 		if update.Message.Command() == "start" {
 			botHandler.HandleStart(tenant, chatID, lang, update.Message.Text)
+		} else if update.Message.Command() == "myid" {
+			// 👈 دریافت آیدی عددی با دستور /myid
+			msg := tgbotapi.NewMessage(chatID, fmt.Sprintf("🆔 آیدی عددی تلگرام شما:\n\n`%d`", update.Message.From.ID))
+			msg.ParseMode = "Markdown"
+			msg.ReplyToMessageID = update.Message.MessageID
+			_, _ = h.SafeBot.Bot.Send(msg)
 		} else if update.Message.Photo != nil {
 			botHandler.HandlePhoto(tenant, update.Message, lang)
 		} else if update.Message.Text != "" {
