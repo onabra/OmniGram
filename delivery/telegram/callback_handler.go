@@ -1087,11 +1087,20 @@ func (h *PollingHandler) HandleCallback(tenant *domain.Tenant, update tgbotapi.U
 			}
 			return
 
+		//case action == "settings":
+		//	if isSuper {
+		//		markup := h.KeyboardBuilder.BuildAdminSettingsMenu()
+		//		msgText := fmt.Sprintf("⚙️ *تنظیمات مالی سیستم*\n\nدرصد کارمزد لغو: %.1f%%\nدرصد کارمزد انتقال گروه: %.1f%%\nپاداش بازگشت غیرفعال: %.0f\n\nجهت ویرایش روی گزینه مورد نظر کلیک کنید:",
+		//			tenant.CancelFeePercent, tenant.TransferFeePercent, tenant.InactiveBonusAmount)
+		//		h.SafeBot.SafeEditText(chatID, messageID, msgText, &markup)
+		//	}
+		//	return
+
 		case action == "settings":
 			if isSuper {
 				markup := h.KeyboardBuilder.BuildAdminSettingsMenu()
-				msgText := fmt.Sprintf("⚙️ *تنظیمات مالی سیستم*\n\nدرصد کارمزد لغو: %.1f%%\nدرصد کارمزد انتقال گروه: %.1f%%\nپاداش بازگشت غیرفعال: %.0f\n\nجهت ویرایش روی گزینه مورد نظر کلیک کنید:",
-					tenant.CancelFeePercent, tenant.TransferFeePercent, tenant.InactiveBonusAmount)
+				msgText := fmt.Sprintf("⚙️ *تنظیمات مالی سیستم*\n\nدرصد کارمزد لغو: %.1f%%\nدرصد کارمزد انتقال گروه: %.1f%%\nپاداش بازگشت غیرفعال: %.0f\nنرخ تبدیل به تومان (۱ امتیاز =): %.0f\nنرخ تبدیل به استارز (؟ امتیاز = ۱ استارز): %.0f\n\nجهت ویرایش روی گزینه مورد نظر کلیک کنید:",
+					tenant.CancelFeePercent, tenant.TransferFeePercent, tenant.InactiveBonusAmount, tenant.PointToTomanRate, tenant.PointToStarRate)
 				h.SafeBot.SafeEditText(chatID, messageID, msgText, &markup)
 			}
 			return
@@ -1527,6 +1536,33 @@ func (h *PollingHandler) HandleCallback(tenant *domain.Tenant, update tgbotapi.U
 			h.SafeBot.SafeEditText(chatID, messageID, "✅ قرعه‌کشی با موفقیت به پایان رسید و نتایج در کانال منتشر شد.\n\n"+resultMsg.String(), nil)
 			return
 		}
+	}
+
+	// مدیریت دکمه‌های تبدیل موجودی (کاربر)
+	if strings.HasPrefix(data, "convert_to_") {
+		user, _ := h.UserRepo.GetUserByTelegramID(tenant.ID, chatID)
+		if user == nil {
+			return
+		}
+
+		targetType := strings.TrimPrefix(data, "convert_to_")
+
+		if targetType == "toman" {
+			_ = h.UserRepo.UpdateUserState(tenant.ID, user.ID, domain.StateWaitConvertAmountToman)
+			h.SafeBot.SafeAnswerCallback(callback.ID, "ارسال مقدار امتیاز...", false)
+
+			msg := tgbotapi.NewMessage(chatID, fmt.Sprintf("🔄 لطفاً مشخص کنید **چه مقدار امتیاز** می‌خواهید به تومان تبدیل کنید؟ (ارسال فقط عدد)\n\n💵 نرخ تبدیل: هر ۱ امتیاز = %.0f تومان", tenant.PointToTomanRate))
+			msg.ParseMode = "Markdown"
+			_, _ = h.SafeBot.Bot.Send(msg)
+		} else if targetType == "stars" {
+			_ = h.UserRepo.UpdateUserState(tenant.ID, user.ID, domain.StateWaitConvertAmountStars)
+			h.SafeBot.SafeAnswerCallback(callback.ID, "ارسال تعداد استارز...", false)
+
+			msg := tgbotapi.NewMessage(chatID, fmt.Sprintf("⭐ لطفاً مشخص کنید **چه تعداد استارز** می‌خواهید دریافت کنید؟ (ارسال فقط عدد)\n\n⭐ نرخ تبدیل: برای دریافت هر ۱ استارز، %.0f امتیاز کسر می‌شود.", tenant.PointToStarRate))
+			msg.ParseMode = "Markdown"
+			_, _ = h.SafeBot.Bot.Send(msg)
+		}
+		return
 	}
 
 }

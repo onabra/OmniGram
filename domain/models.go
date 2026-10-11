@@ -48,6 +48,9 @@ const (
 	StateAdminWaitTicketReply  UserState = "ADMIN_WAIT_TICKET_REPLY"  // انتظار پاسخ ادمین به تیکت کاربر
 	StateAdminWaitBroadcastMsg UserState = "ADMIN_WAIT_BROADCAST_MSG" // انتظار ارسال پیام یا فوروارد برای ارسال همگانی
 
+	StateWaitConvertAmountStars UserState = "WAIT_CONVERT_AMOUNT_STARS" // انتظار مقدار استارز برای تبدیل
+	StateWaitConvertAmountToman UserState = "WAIT_CONVERT_AMOUNT_TOMAN" // انتظار مقدار امتیاز برای تبدیل به تومان
+
 )
 
 // Tenant (موجودیت اصلی برای معماری SaaS)
@@ -57,11 +60,13 @@ type Tenant struct {
 	IsActive            bool    // وضعیت اشتراک (فعال/منقضی)[cite: 1]
 	ReportChannelID     string  // آیدی کانال‌های گزارش مربوط به همین کارفرما[cite: 1]
 	OrderChannelID      string  // آیدی کانال‌های سفارشات مربوط به همین کارفرما[cite: 1]
-	WinnerChannelID     string  // اضافه شد: آیدی کانال مخصوص نتایج مسابقات و قرعه‌کشی‌ها
+	WinnerChannelID     string  //  آیدی کانال مخصوص نتایج مسابقات و قرعه‌کشی‌ها
 	TransferFeePercent  float64 // درصد کارمزد انتقال (مثلا 5.0 برای ۵ درصد)
 	CancelFeePercent    float64 // درصد کارمزد لغو سفارش
 	InactiveBonusAmount float64 // مقدار امتیازی که اگر کاربر ۱۰ روز غیرفعال بود به معرف جدید میرسه
-	DollarPrice         float64 `gorm:"default:60000"` // اضافه شد: قیمت روز دلار (تومان)
+	DollarPrice         float64 `gorm:"default:60000"` //  قیمت روز دلار (تومان)
+	PointToTomanRate    float64 `gorm:"default:800"`   //  هر ۱ امتیاز معادل این مقدار تومان است
+	PointToStarRate     float64 `gorm:"default:3.0"`   //  هر ۱ استارز نیازمند این مقدار امتیاز است
 	CreatedAt           time.Time
 	UpdatedAt           time.Time
 }
@@ -184,7 +189,7 @@ type GameSession struct {
 	CreatorRoll *int
 	JoinerRoll  *int
 
-	CreatedAt time.Time // اضافه شد: برای محاسبه تعداد بازی‌ های امروز
+	CreatedAt time.Time //  برای محاسبه تعداد بازی‌ های امروز
 	UpdatedAt time.Time
 }
 
@@ -219,8 +224,8 @@ type Order struct {
 	HasRefill        bool   // وضعیت درخواست ریفیل (ریزش)
 	SpeedUpRequested bool   // درخواست سرعت‌دهی به سفارش
 
-	CreatedAt time.Time // اضافه شد: زمان ثبت سفارش (برای محاسبه محدودیت ویرایش ۳۰ دقیقه‌ای)
-	UpdatedAt time.Time // اضافه شد: زمان آخرین آپدیت وضعیت سفارش
+	CreatedAt time.Time //  زمان ثبت سفارش (برای محاسبه محدودیت ویرایش ۳۰ دقیقه‌ای)
+	UpdatedAt time.Time //  زمان آخرین آپدیت وضعیت سفارش
 }
 
 // [domain/models.go]

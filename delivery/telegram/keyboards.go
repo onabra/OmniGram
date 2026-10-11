@@ -110,6 +110,7 @@ func (kb *KeyboardBuilder) BuildUserAccountMenu(tenantID uint, lang string) (tgb
 
 	btnBalance := getText("btn_balance", "موجودی")
 	btnTransfer := getText("btn_transfer", "انتقال")
+	btnConvert := getText("btn_convert", "🔄 تبدیل موجودی")
 	btnRecentTxs := getText("btn_recent_txs", "تراکنشات اخیر")
 	btnRefStats := getText("btn_ref_stats", "رفرال ها")
 	btnSupport := getText("btn_support", "ارتباط با پشتیبانی")
@@ -117,8 +118,8 @@ func (kb *KeyboardBuilder) BuildUserAccountMenu(tenantID uint, lang string) (tgb
 
 	keyboard := tgbotapi.NewReplyKeyboard(
 		tgbotapi.NewKeyboardButtonRow(tgbotapi.NewKeyboardButton(btnBalance), tgbotapi.NewKeyboardButton(btnTransfer)),
-		tgbotapi.NewKeyboardButtonRow(tgbotapi.NewKeyboardButton(btnRecentTxs), tgbotapi.NewKeyboardButton(btnRefStats)),
-		tgbotapi.NewKeyboardButtonRow(tgbotapi.NewKeyboardButton(btnSupport)),
+		tgbotapi.NewKeyboardButtonRow(tgbotapi.NewKeyboardButton(btnConvert), tgbotapi.NewKeyboardButton(btnRecentTxs)),
+		tgbotapi.NewKeyboardButtonRow(tgbotapi.NewKeyboardButton(btnRefStats), tgbotapi.NewKeyboardButton(btnSupport)),
 		tgbotapi.NewKeyboardButtonRow(tgbotapi.NewKeyboardButton(btnBack)),
 	)
 
@@ -503,9 +504,13 @@ func (kb *KeyboardBuilder) BuildAdminSettingsMenu() tgbotapi.InlineKeyboardMarku
 	return tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("⚙️ کارمزد لغو سفارش", "admset_cancelfee"),
+			tgbotapi.NewInlineKeyboardButtonData("⚙️ کارمزد انتقال گروه", "admset_transferfee"),
 		),
 		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("⚙️ کارمزد انتقال بین کاربران", "admset_transferfee"),
+			tgbotapi.NewInlineKeyboardButtonData("⚙️ نرخ تبدیل: ۱ امتیاز = ؟ تومان", "admset_ratetoman"),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("⚙️ نرخ تبدیل: ؟ امتیاز = ۱ استارز", "admset_ratestar"),
 		),
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("⚙️ پاداش دعوت از غیرفعال‌ها", "admset_inactivebonus"),
@@ -655,6 +660,18 @@ func (kb *KeyboardBuilder) BuildAdminDrawActionMenu(drawID uint) tgbotapi.Inline
 		),
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("🔙 بازگشت به لیست", "admin_draws"),
+		),
+	)
+}
+
+// BuildConvertMenu منوی انتخاب نوع تبدیل موجودی
+func (kb *KeyboardBuilder) BuildConvertMenu() tgbotapi.InlineKeyboardMarkup {
+	return tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("🔄 تبدیل امتیاز به تومان", "convert_to_toman"),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("⭐ تبدیل امتیاز به استارز", "convert_to_stars"),
 		),
 	)
 }

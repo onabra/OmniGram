@@ -116,6 +116,8 @@ func (h *BotHandler) HandleMessage(tenant *domain.Tenant, chatID int64, text str
 
 	btnTrackOrder := getText("btn_track_order", "🔍 پیگیری سفارش")
 
+	btnConvert := getText("btn_convert", "🔄 تبدیل موجودی")
+
 	btnWithdraw := getText("btn_withdraw", "برداشت")
 
 	// پیدا کردن کاربر از دیتابیس برای عملیاتی که نیاز به اطلاعات کاربر دارند
@@ -341,10 +343,76 @@ func (h *BotHandler) HandleMessage(tenant *domain.Tenant, chatID int64, text str
 				tenant.TransferFeePercent = val
 			case "inactivebonus":
 				tenant.InactiveBonusAmount = val
+			case "ratetoman":
+				tenant.PointToTomanRate = val
+			case "ratestar":
+				tenant.PointToStarRate = val
 			}
 
 			_ = h.AdminRepo.UpdateTenantSetting(tenant)
 			_ = h.SafeBot.SendMessage(chatID, fmt.Sprintf("✅ تنظیمات با موفقیت به مقدار %.2f تغییر یافت.", val))
+			_ = h.UserRepo.UpdateUserState(tenant.ID, currentUser.ID, domain.StateNormal)
+			return
+		}
+	}
+
+	// --- سیستم تبدیل موجودی (Exchange) ---
+	if currentUser.State == domain.StateWaitConvertAmountToman {
+		if text == backMainBtnText {
+			_ = h.UserRepo.UpdateUserState(tenant.ID, currentUser.ID, domain.StateNormal)
+		} else {
+			pointsToConvert, err := strconv.ParseFloat(text, 64)
+			if err != nil || pointsToConvert <= 0 {
+				_ = h.SafeBot.SendMessage(chatID, "❌ مقدار نامعتبر است. فقط عدد بفرستید.")
+				return
+			}
+			if currentUser.PointBalance < pointsToConvert {
+				_ = h.SafeBot.SendMessage(chatID, "❌ موجودی امتیاز شما برای این تبدیل کافی نیست.")
+				return
+			}
+
+			tomanReceived := pointsToConvert * tenant.PointToTomanRate
+			currentUser.PointBalance -= pointsToConvert
+			currentUser.TomanBalance += tomanReceived
+
+			_ = h.UserRepo.UpdateBalances(tenant.ID, currentUser.ID, currentUser.TomanBalance, currentUser.PointBalance, currentUser.StarsBalance)
+
+			// ثبت در تراکنش‌ها
+			_ = h.TxRepo.Create(&domain.Transaction{TenantID: tenant.ID, UserID: currentUser.ID, Amount: -pointsToConvert, Type: "CONVERT_OUT", Currency: "POINT"})
+			_ = h.TxRepo.Create(&domain.Transaction{TenantID: tenant.ID, UserID: currentUser.ID, Amount: tomanReceived, Type: "CONVERT_IN", Currency: "TOMAN"})
+
+			_ = h.SafeBot.SendMessage(chatID, fmt.Sprintf("✅ تبدیل با موفقیت انجام شد.\n\nمقدار **%.0f امتیاز** کسر شد و **%.0f تومان** به کیف پول شما اضافه گردید.", pointsToConvert, tomanReceived))
+			_ = h.UserRepo.UpdateUserState(tenant.ID, currentUser.ID, domain.StateNormal)
+			return
+		}
+	}
+
+	if currentUser.State == domain.StateWaitConvertAmountStars {
+		if text == backMainBtnText {
+			_ = h.UserRepo.UpdateUserState(tenant.ID, currentUser.ID, domain.StateNormal)
+		} else {
+			starsRequested, err := strconv.ParseFloat(text, 64)
+			if err != nil || starsRequested <= 0 {
+				_ = h.SafeBot.SendMessage(chatID, "❌ مقدار نامعتبر است. فقط عدد بفرستید.")
+				return
+			}
+
+			pointsNeeded := starsRequested * tenant.PointToStarRate
+			if currentUser.PointBalance < pointsNeeded {
+				_ = h.SafeBot.SendMessage(chatID, fmt.Sprintf("❌ موجودی امتیاز شما کافی نیست. برای دریافت %.0f استارز به **%.0f امتیاز** نیاز دارید.", starsRequested, pointsNeeded))
+				return
+			}
+
+			currentUser.PointBalance -= pointsNeeded
+			currentUser.StarsBalance += starsRequested
+
+			_ = h.UserRepo.UpdateBalances(tenant.ID, currentUser.ID, currentUser.TomanBalance, currentUser.PointBalance, currentUser.StarsBalance)
+
+			// ثبت در تراکنش‌ها
+			_ = h.TxRepo.Create(&domain.Transaction{TenantID: tenant.ID, UserID: currentUser.ID, Amount: -pointsNeeded, Type: "CONVERT_OUT", Currency: "POINT"})
+			_ = h.TxRepo.Create(&domain.Transaction{TenantID: tenant.ID, UserID: currentUser.ID, Amount: starsRequested, Type: "CONVERT_IN", Currency: "STARS"})
+
+			_ = h.SafeBot.SendMessage(chatID, fmt.Sprintf("✅ تبدیل با موفقیت انجام شد.\n\nمقدار **%.0f امتیاز** کسر شد و **%.0f استارز** به موجودی شما اضافه گردید.", pointsNeeded, starsRequested))
 			_ = h.UserRepo.UpdateUserState(tenant.ID, currentUser.ID, domain.StateNormal)
 			return
 		}
@@ -669,6 +737,15 @@ func (h *BotHandler) HandleMessage(tenant *domain.Tenant, chatID int64, text str
 	}
 
 	switch text {
+
+	case btnConvert:
+		markup := h.KeyboardBuilder.BuildConvertMenu()
+		msgText := fmt.Sprintf("🔄 *بخش تبدیل موجودی*\n\nنرخ‌های تبدیل فعال در سیستم:\n💵 **هر ۱ امتیاز = %.0f تومان**\n⭐ **هر %.0f امتیاز = ۱ استارز**\n\nلطفاً عملیات مورد نظر را انتخاب کنید:", tenant.PointToTomanRate, tenant.PointToStarRate)
+
+		msg := tgbotapi.NewMessage(chatID, msgText)
+		msg.ParseMode = "Markdown"
+		msg.ReplyMarkup = markup
+		_, _ = h.SafeBot.Bot.Send(msg)
 
 	case btnShop:
 		categories, err := h.CategoryRepo.GetMainCategories(tenant.ID)
