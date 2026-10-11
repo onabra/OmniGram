@@ -91,17 +91,20 @@ type Transaction struct {
 
 // User (اطلاعات کاربران و کیف پول‌های سه‌گانه)
 type User struct {
-	ID             uint  `gorm:"primaryKey"`
-	TenantID       uint  `gorm:"index"` // فیلد کلیدی برای ایزوله ماندن داده‌های کارفرما[cite: 1]
-	TelegramID     int64 `gorm:"index"` // شناسه کاربری در تلگرام
-	FirstName      string
-	TomanBalance   float64 // موجودی تومانی کاربر[cite: 1]
-	PointBalance   float64 // موجودی امتیازی کاربر[cite: 1]
-	StarsBalance   float64 // موجودی استارز کاربر[cite: 1]
-	DrawTickets    int
-	CurrentTaskID  uint      //  ذخیره آیدی تسک دستی که کاربر در حال ارسال عکس برای آن است
-	CurrentOrderID uint      // ذخیره آیدی سفارشی که کاربر در حال ویرایش لینک آن است
-	Language       string    // زبان انتخابی کاربر برای نمایش متون[cite: 1]
+	ID                      uint  `gorm:"primaryKey"`
+	TenantID                uint  `gorm:"index"` // فیلد کلیدی برای ایزوله ماندن داده‌های کارفرما[cite: 1]
+	TelegramID              int64 `gorm:"index"` // شناسه کاربری در تلگرام
+	FirstName               string
+	TomanBalance            float64 // موجودی تومانی کاربر[cite: 1]
+	PointBalance            float64 // موجودی امتیازی کاربر[cite: 1]
+	StarsBalance            float64 // موجودی استارز کاربر[cite: 1]
+	DrawTickets             int
+	CurrentTaskID           uint    //  ذخیره آیدی تسک دستی که کاربر در حال ارسال عکس برای آن است
+	CurrentOrderID          uint    // ذخیره آیدی سفارشی که کاربر در حال ویرایش لینک آن است
+	Language                string  // زبان انتخابی کاربر برای نمایش متون[cite: 1]
+	CurrentWithdrawCurrency string  // ذخیره نوع ارز درخواستی برای برداشت (STARS یا GIFT)
+	CurrentWithdrawAmount   float64 // ذخیره مقدار درخواستی برای برداشت
+
 	LastActiveDate time.Time // تاریخ آخرین فعالیت برای محاسبه قانون ۱۰ روز خاموشی و تخصیص ۵۰٪ امتیاز به معرف جدید[cite: 1]
 	State          UserState `gorm:"default:'NORMAL'"` // برای جلوگیری از باز شدن چند بخش همزمان
 }

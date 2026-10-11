@@ -70,3 +70,12 @@ func (r *TaskRepository) GetSubmissionByID(tenantID uint, subID uint) (*domain.T
 func (r *TaskRepository) UpdateSubmissionStatus(sub *domain.TaskSubmission) error {
 	return r.DB.Model(sub).Update("status", sub.Status).Error
 }
+
+// GetUserApprovedTaskCount دریافت تعداد تسک‌های تایید شده یک کاربر (برای شرط برداشت)
+func (r *TaskRepository) GetUserApprovedTaskCount(tenantID uint, userID uint) int64 {
+	var count int64
+	r.DB.Model(&domain.TaskSubmission{}).
+		Where("tenant_id = ? AND user_id = ? AND status = ?", tenantID, userID, "APPROVED").
+		Count(&count)
+	return count
+}

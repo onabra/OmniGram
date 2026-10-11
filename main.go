@@ -35,13 +35,12 @@ func main() {
 		&domain.VerifiedCard{},
 		&domain.Order{},
 		&domain.Transaction{},
-
 		&domain.LuckyDraw{},
 		&domain.DrawEntry{},
-
 		&domain.Receipt{},
-
 		&domain.ForceJoin{},
+
+		&domain.Withdrawal{},
 	)
 	if err != nil {
 		log.Println("⚠️ خطا در مایگریشن جداول:", err)
@@ -67,14 +66,12 @@ func main() {
 	taskRepo := &repository.TaskRepository{DB: db}
 	ticketRepo := &repository.TicketRepository{DB: db}
 	gameRepo := &repository.GameRepository{DB: db}
-
 	receiptRepo := &repository.ReceiptRepository{DB: db}
-
 	categoryRepo := &repository.CategoryRepository{DB: db}
-
 	drawRepo := &repository.DrawRepository{DB: db}
-
 	forceJoinRepo := &repository.ForceJoinRepository{DB: db}
+
+	withdrawalRepo := &repository.WithdrawalRepository{DB: db} // اضافه شد
 
 	// ۴. مقداردهی ماژول کیبوردساز داینامیک
 	keyboardBuilder := &telegram.KeyboardBuilder{
@@ -103,12 +100,13 @@ func main() {
 		SuperAdminIDs: cfg.SuperAdminIDs,
 		AdminIDs:      cfg.AdminIDs,
 
-		TicketRepo:  ticketRepo,
-		GameRepo:    gameRepo,
-		ReceiptRepo: receiptRepo,
-		DrawRepo:    drawRepo,
-
+		TicketRepo:    ticketRepo,
+		GameRepo:      gameRepo,
+		ReceiptRepo:   receiptRepo,
+		DrawRepo:      drawRepo,
 		ForceJoinRepo: forceJoinRepo,
+
+		WithdrawalRepo: withdrawalRepo,
 
 		CategoryRepo: categoryRepo,
 	}

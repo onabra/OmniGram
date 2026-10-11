@@ -32,8 +32,9 @@ type PollingHandler struct {
 	ReceiptRepo     *repository.ReceiptRepository
 	DrawRepo        *repository.DrawRepository
 	CategoryRepo    *repository.CategoryRepository
+	ForceJoinRepo   *repository.ForceJoinRepository
 
-	ForceJoinRepo *repository.ForceJoinRepository
+	WithdrawalRepo *repository.WithdrawalRepository
 
 	SuperAdminIDs []int64
 	AdminIDs      []int64
@@ -81,7 +82,7 @@ func (h *PollingHandler) processUpdateWithRecovery(update tgbotapi.Update) {
 		}
 	}()
 
-	// --- منطق پردازش روتینگ قبلی شما ---
+	// --- منطق پردازش روتینگ ---
 	tenant, err := h.TenantRepo.GetByToken(h.MasterBotToken)
 	if err != nil || !tenant.IsActive {
 		return // رد کردن آپدیت
@@ -90,17 +91,17 @@ func (h *PollingHandler) processUpdateWithRecovery(update tgbotapi.Update) {
 	lang := "fa"
 
 	if update.CallbackQuery != nil {
-		h.HandleCallback(tenant, *update.CallbackQuery, lang) // در صورت وجود متد آن را از کامنت خارج کنید
+		h.HandleCallback(tenant, update, lang) // 👈 ارور نوع داده در اینجا فیکس شد
 		return
 	}
 
 	if update.ChatMember != nil {
-		// h.HandleChatMemberUpdate(tenant, update.ChatMember) // در صورت وجود متد آن را از کامنت خارج کنید
+		h.HandleChatMemberUpdate(tenant, update.ChatMember) // 👈 از کامنت خارج شد
 		return
 	}
 
 	if update.Message != nil && (update.Message.Chat.IsGroup() || update.Message.Chat.IsSuperGroup()) {
-		// h.HandleGroupMessage(tenant, update.Message) // در صورت وجود متد آن را از کامنت خارج کنید
+		h.HandleGroupMessage(tenant, update.Message) // 👈 از کامنت خارج شد
 		return
 	}
 
@@ -124,49 +125,16 @@ func (h *PollingHandler) processUpdateWithRecovery(update tgbotapi.Update) {
 			TicketRepo:      h.TicketRepo,
 			GameRepo:        h.GameRepo,
 			ReceiptRepo:     h.ReceiptRepo,
-
-			ForceJoinRepo: h.ForceJoinRepo,
+			ForceJoinRepo:   h.ForceJoinRepo,
+			WithdrawalRepo:  h.WithdrawalRepo,
+			DrawRepo:        h.DrawRepo,     // تزریق شده از بلوک‌های تکراری
+			CategoryRepo:    h.CategoryRepo, // تزریق شده از بلوک‌های تکراری
 		}
 
 		if update.Message.Command() == "start" {
 			botHandler.HandleStart(tenant, chatID, lang, update.Message.Text)
 		} else if update.Message.Photo != nil {
 			botHandler.HandlePhoto(tenant, update.Message, lang)
-		} else if update.Message.Text != "" {
-			botHandler.HandleMessage(tenant, chatID, update.Message.Text, lang)
-		}
-	}
-
-	if update.Message != nil {
-		chatID := update.Message.Chat.ID
-
-		botHandler := &BotHandler{
-			TenantRepo:      h.TenantRepo,
-			TranslationRepo: h.TranslationRepo,
-			KeyboardBuilder: h.KeyboardBuilder,
-			SafeBot:         h.SafeBot,
-			UserRepo:        h.UserRepo,
-			ReferralRepo:    h.RefRepo,
-			TxRepo:          h.TxRepo,
-			WalletService:   h.WalletService,
-			OrderRepo:       h.OrderRepo,
-			ServiceRepo:     h.ServiceRepo,
-			TaskRepo:        h.TaskRepo,
-
-			SuperAdminIDs: h.SuperAdminIDs,
-			AdminIDs:      h.AdminIDs,
-
-			TicketRepo:  h.TicketRepo,
-			GameRepo:    h.GameRepo,
-			ReceiptRepo: h.ReceiptRepo,
-
-			DrawRepo: h.DrawRepo,
-
-			CategoryRepo: h.CategoryRepo,
-		}
-
-		if update.Message.Command() == "start" {
-			botHandler.HandleStart(tenant, chatID, lang, update.Message.Text)
 		} else if update.Message.Text != "" {
 			botHandler.HandleMessage(tenant, chatID, update.Message.Text, lang)
 		}

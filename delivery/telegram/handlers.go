@@ -29,8 +29,9 @@ type BotHandler struct {
 	GameRepo        *repository.GameRepository
 	ReceiptRepo     *repository.ReceiptRepository
 	DrawRepo        *repository.DrawRepository
+	ForceJoinRepo   *repository.ForceJoinRepository
 
-	ForceJoinRepo *repository.ForceJoinRepository
+	WithdrawalRepo *repository.WithdrawalRepository
 
 	CategoryRepo *repository.CategoryRepository
 
@@ -114,6 +115,8 @@ func (h *BotHandler) HandleMessage(tenant *domain.Tenant, chatID int64, text str
 	btnRefLeague := getText("btn_ref_league", "لیگ")
 
 	btnTrackOrder := getText("btn_track_order", "🔍 پیگیری سفارش")
+
+	btnWithdraw := getText("btn_withdraw", "برداشت")
 
 	// پیدا کردن کاربر از دیتابیس برای عملیاتی که نیاز به اطلاعات کاربر دارند
 	// پیدا کردن کاربر از دیتابیس
@@ -284,6 +287,39 @@ func (h *BotHandler) HandleMessage(tenant *domain.Tenant, chatID int64, text str
 		}
 	}
 
+	if currentUser.State == domain.StateWaitWithdrawWallet {
+		if text == backMainBtnText {
+			_ = h.UserRepo.UpdateUserState(tenant.ID, currentUser.ID, domain.StateNormal)
+		} else {
+			// ثبت نهایی درخواست برداشت
+			withdrawal := &domain.Withdrawal{
+				TenantID:      tenant.ID,
+				UserID:        currentUser.ID,
+				Amount:        currentUser.CurrentWithdrawAmount,
+				Currency:      currentUser.CurrentWithdrawCurrency,
+				WalletAddress: text, // لینک پست یا آیدی کاربری
+				Status:        "PENDING",
+			}
+			_ = h.WithdrawalRepo.Create(withdrawal)
+
+			_ = h.SafeBot.SendMessage(chatID, "✅ درخواست برداشت شما با موفقیت ثبت شد و پس از بررسی توسط ادمین واریز خواهد شد.")
+			_ = h.UserRepo.UpdateUserState(tenant.ID, currentUser.ID, domain.StateNormal)
+
+			// ارسال به کانال گزارش
+			if tenant.ReportChannelID != "" {
+				chID, _ := strconv.ParseInt(tenant.ReportChannelID, 10, 64)
+				reportText := fmt.Sprintf("💳 *درخواست برداشت جدید*\n\n👤 کاربر: [%s](tg://user?id=%d)\nنوع: %s\nمقدار: %.0f\n🔗 لینک / آیدی ثبت شده:\n%s",
+					currentUser.FirstName, currentUser.TelegramID, withdrawal.Currency, withdrawal.Amount, text)
+
+				msg := tgbotapi.NewMessage(chID, reportText)
+				msg.ParseMode = "Markdown"
+				msg.ReplyMarkup = h.KeyboardBuilder.BuildAdminWithdrawMenu(withdrawal.ID)
+				_, _ = h.SafeBot.Bot.Send(msg)
+			}
+			return
+		}
+	}
+
 	// --- سیستم پشتیبانی ---
 	if currentUser.State == domain.StateWaitSupportOrderCode {
 		if text == backMainBtnText {
@@ -366,6 +402,25 @@ func (h *BotHandler) HandleMessage(tenant *domain.Tenant, chatID int64, text str
 			msg.ReplyMarkup = shopMenu
 			_, _ = h.SafeBot.Bot.Send(msg)
 		}
+
+	case btnWithdraw:
+		// بررسی شروط کارفرما: حداقل ۳ رفرال و ۲ تسک
+		refStats, _ := h.ReferralRepo.GetReferralStats(tenant.ID, currentUser.ID)
+		totalRefs := refStats.LeagueTotal + refStats.DrawTotal + refStats.PointTotal + refStats.WalletTotal
+		taskCount := h.TaskRepo.GetUserApprovedTaskCount(tenant.ID, currentUser.ID)
+
+		if totalRefs < 3 || taskCount < 2 {
+			msgText := fmt.Sprintf("❌ *عدم دسترسی*\n\nبرای برداشت استارز یا گیفت باید حداقل شروط زیر را داشته باشید:\n\n👥 رفرال تایید شده: ۳ نفر (شما: %d)\n✅ تسک‌های انجام شده: ۲ تسک (شما: %d)", totalRefs, taskCount)
+			_ = h.SafeBot.SendMessage(chatID, msgText)
+			return
+		}
+
+		msgText := "💳 *بخش برداشت*\n\nلطفاً نوع برداشت خود را انتخاب کنید:"
+		markup := h.KeyboardBuilder.BuildWithdrawTypeMenu()
+		msg := tgbotapi.NewMessage(chatID, msgText)
+		msg.ParseMode = "Markdown"
+		msg.ReplyMarkup = markup
+		_, _ = h.SafeBot.Bot.Send(msg)
 
 	case btnTrackOrder:
 		_ = h.UserRepo.UpdateUserState(tenant.ID, currentUser.ID, domain.StateWaitTrackingCode)

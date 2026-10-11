@@ -12,13 +12,13 @@ type UserRepository interface {
 	CreateUser(user *domain.User) error
 	GetUserByTelegramID(tenantID uint, telegramID int64) (*domain.User, error)
 	UpdateBalances(tenantID uint, userID uint, toman, point, stars float64) error
-
 	GetUserByID(tenantID uint, id uint) (*domain.User, error)
 	AddBalances(tenantID uint, userID uint, toman, point, stars float64) error
 	UpdateDrawTickets(tenantID uint, userID uint, tickets int) error
 	UpdateUserTaskID(tenantID uint, userID uint, taskID uint) error
-
 	UpdateUserOrderID(tenantID uint, userID uint, orderID uint) error
+
+	UpdateWithdrawDraft(tenantID uint, userID uint, currency string, amount float64) error
 }
 
 type userRepository struct {
@@ -103,4 +103,14 @@ func (r *userRepository) UpdateUserOrderID(tenantID uint, userID uint, orderID u
 	return r.db.Model(&domain.User{}).
 		Where("tenant_id = ? AND id = ?", tenantID, userID).
 		Update("current_order_id", orderID).Error
+}
+
+// UpdateWithdrawDraft ذخیره اطلاعات پیش‌نویس برداشت کاربر
+func (r *userRepository) UpdateWithdrawDraft(tenantID uint, userID uint, currency string, amount float64) error {
+	return r.db.Model(&domain.User{}).
+		Where("tenant_id = ? AND id = ?", tenantID, userID).
+		Updates(map[string]interface{}{
+			"current_withdraw_currency": currency,
+			"current_withdraw_amount":   amount,
+		}).Error
 }

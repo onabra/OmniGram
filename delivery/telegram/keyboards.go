@@ -422,3 +422,51 @@ func (kb *KeyboardBuilder) BuildOrderActionsMenu(orderID uint) tgbotapi.InlineKe
 		),
 	)
 }
+
+// BuildWithdrawTypeMenu انتخاب نوع برداشت
+func (kb *KeyboardBuilder) BuildWithdrawTypeMenu() tgbotapi.InlineKeyboardMarkup {
+	return tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("⭐ برداشت استارز", "withdraw_select_stars"),
+			tgbotapi.NewInlineKeyboardButtonData("🎁 برداشت گیفت", "withdraw_select_gift"),
+		),
+	)
+}
+
+// BuildWithdrawStarsMenu انتخاب تعداد استارز (۱ تا ۹)
+func (kb *KeyboardBuilder) BuildWithdrawStarsMenu() tgbotapi.InlineKeyboardMarkup {
+	var rows [][]tgbotapi.InlineKeyboardButton
+	var currentRow []tgbotapi.InlineKeyboardButton
+
+	for i := 1; i <= 9; i++ {
+		btnText := fmt.Sprintf("%d ⭐", i)
+		btnData := fmt.Sprintf("withdraw_do_STARS_%d", i)
+		currentRow = append(currentRow, tgbotapi.NewInlineKeyboardButtonData(btnText, btnData))
+		if len(currentRow) == 3 || i == 9 {
+			rows = append(rows, currentRow)
+			currentRow = nil
+		}
+	}
+	return tgbotapi.NewInlineKeyboardMarkup(rows...)
+}
+
+// BuildWithdrawGiftMenu انتخاب نوع گیفت
+func (kb *KeyboardBuilder) BuildWithdrawGiftMenu() tgbotapi.InlineKeyboardMarkup {
+	return tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("🧸 گیفت تدی (۳۰ امتیاز)", "withdraw_do_GIFT_30"),
+			tgbotapi.NewInlineKeyboardButtonData("❤️ گیفت قلب (۵۰ امتیاز)", "withdraw_do_GIFT_50"),
+		),
+	)
+}
+
+// BuildAdminWithdrawMenu دکمه‌های تأیید برداشت برای ادمین
+func (kb *KeyboardBuilder) BuildAdminWithdrawMenu(wID uint) tgbotapi.InlineKeyboardMarkup {
+	idStr := fmt.Sprintf("%d", wID)
+	return tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("✅ تأیید واریز", "admin_withdraw_approve_"+idStr),
+			tgbotapi.NewInlineKeyboardButtonData("❌ رد درخواست", "admin_withdraw_reject_"+idStr),
+		),
+	)
+}

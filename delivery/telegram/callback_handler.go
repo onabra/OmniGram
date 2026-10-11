@@ -687,6 +687,64 @@ func (h *PollingHandler) HandleCallback(tenant *domain.Tenant, update tgbotapi.U
 		return
 	}
 
+	// کاربر روی منوهای برداشت کلیک کرده است
+	if strings.HasPrefix(data, "withdraw_") {
+		user, _ := h.UserRepo.GetUserByTelegramID(tenant.ID, chatID)
+		if user == nil {
+			return
+		}
+
+		if data == "withdraw_select_stars" {
+			markup := h.KeyboardBuilder.BuildWithdrawStarsMenu()
+			h.SafeBot.SafeEditText(chatID, messageID, "⭐ لطفاً تعداد استارز درخواستی (از ۱ تا ۹) را انتخاب کنید:\n\n*(هر ۱ استارز = ۳ امتیاز)*", &markup)
+			return
+		}
+
+		if data == "withdraw_select_gift" {
+			markup := h.KeyboardBuilder.BuildWithdrawGiftMenu()
+			h.SafeBot.SafeEditText(chatID, messageID, "🎁 لطفاً گیفت مورد نظر خود را انتخاب کنید:", &markup)
+			return
+		}
+
+		if strings.HasPrefix(data, "withdraw_do_") {
+			parts := strings.Split(data, "_")
+			if len(parts) != 4 {
+				return
+			}
+			currency := parts[2] // STARS یا GIFT
+			amount, _ := strconv.ParseFloat(parts[3], 64)
+
+			// محاسبه هزینه به امتیاز
+			cost := amount
+			if currency == "STARS" {
+				cost = amount * 3.0 // طبق قانون کارفرما: هر ۳ امتیاز = ۱ استارز
+			}
+
+			if user.PointBalance < cost {
+				h.SafeBot.SafeAnswerCallback(callback.ID, "❌ موجودی امتیاز شما کافی نیست.", true)
+				return
+			}
+
+			// کسر موجودی و ثبت پیش‌نویس برداشت
+			user.PointBalance -= cost
+			_ = h.UserRepo.UpdateBalances(tenant.ID, user.ID, user.TomanBalance, user.PointBalance, user.StarsBalance)
+			_ = h.UserRepo.UpdateWithdrawDraft(tenant.ID, user.ID, currency, amount)
+			_ = h.UserRepo.UpdateUserState(tenant.ID, user.ID, domain.StateWaitWithdrawWallet)
+
+			h.SafeBot.SafeAnswerCallback(callback.ID, "✅ مبلغ کسر شد. لطفاً لینک را بفرستید.", false)
+
+			h.SafeBot.SafeDeleteMessage(chatID, messageID)
+
+			prompt := "🔗 لطفاً **لینک پست** (برای دریافت استارز) یا **آیدی کاربری** (برای دریافت گیفت) را ارسال کنید:"
+			msg := tgbotapi.NewMessage(chatID, prompt)
+			msg.ParseMode = "Markdown"
+			accMenu, _ := h.KeyboardBuilder.BuildUserAccountMenu(tenant.ID, lang)
+			msg.ReplyMarkup = accMenu
+			_, _ = h.SafeBot.Bot.Send(msg)
+			return
+		}
+	}
+
 	// --- مسیریابی دکمه‌های پنل مدیریت ---
 	if strings.HasPrefix(data, "admin_") {
 		// بررسی امنیتی: آیا کسی که کلیک کرده واقعا ادمین است؟
@@ -842,6 +900,52 @@ func (h *PollingHandler) HandleCallback(tenant *domain.Tenant, update tgbotapi.U
 				// TODO: واکشی آمار و ویرایش پیام
 				h.SafeBot.SafeAnswerCallback(callback.ID, "آمار به زودی لود می‌شود...", false)
 			}
+
+		case strings.HasPrefix(action, "withdraw_"):
+			parts := strings.Split(action, "_")
+			if len(parts) != 3 {
+				return
+			}
+			wdAction := parts[1] // approve یا reject
+			wdID, _ := strconv.Atoi(parts[2])
+
+			withdrawal, err := h.WithdrawalRepo.GetByID(tenant.ID, uint(wdID))
+			if err != nil || withdrawal.Status != "PENDING" {
+				h.SafeBot.SafeAnswerCallback(callback.ID, "❌ این درخواست قبلاً بررسی شده است.", true)
+				return
+			}
+
+			userUser, _ := h.UserRepo.GetUserByID(tenant.ID, withdrawal.UserID)
+
+			if wdAction == "approve" {
+				withdrawal.Status = "APPROVED"
+				_ = h.WithdrawalRepo.UpdateStatus(withdrawal)
+
+				h.SafeBot.SafeAnswerCallback(callback.ID, "✅ درخواست تأیید شد.", false)
+				h.SafeBot.SafeEditText(chatID, messageID, "✅ این درخواست برداشت انجام و واریز شد.", nil)
+				if userUser != nil {
+					_ = h.SafeBot.SendMessage(userUser.TelegramID, fmt.Sprintf("✅ درخواست برداشت %.0f %s شما تأیید و واریز شد.", withdrawal.Amount, withdrawal.Currency))
+				}
+			} else if wdAction == "reject" {
+				withdrawal.Status = "REJECTED"
+				_ = h.WithdrawalRepo.UpdateStatus(withdrawal)
+
+				// عودت مبلغ به کاربر
+				if userUser != nil {
+					refundCost := withdrawal.Amount
+					if withdrawal.Currency == "STARS" {
+						refundCost = withdrawal.Amount * 3.0
+					}
+					userUser.PointBalance += refundCost
+					_ = h.UserRepo.UpdateBalances(tenant.ID, userUser.ID, userUser.TomanBalance, userUser.PointBalance, userUser.StarsBalance)
+
+					_ = h.SafeBot.SendMessage(userUser.TelegramID, "❌ درخواست برداشت شما تأیید نشد و مبلغ به حساب شما بازگشت داده شد.")
+				}
+
+				h.SafeBot.SafeAnswerCallback(callback.ID, "❌ درخواست رد شد.", false)
+				h.SafeBot.SafeEditText(chatID, messageID, "❌ این درخواست رد و مبلغ عودت داده شد.", nil)
+			}
+			return
 
 		// ... سایر کیس‌ها به مرور تکمیل می‌شوند ...
 		default:
