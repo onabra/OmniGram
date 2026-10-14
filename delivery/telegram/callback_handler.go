@@ -16,6 +16,7 @@ func (h *PollingHandler) HandleCallback(tenant *domain.Tenant, update tgbotapi.U
 	callback := update.CallbackQuery
 	data := callback.Data
 	chatID := callback.Message.Chat.ID
+	userID := callback.From.ID
 	messageID := callback.Message.MessageID
 
 	// غیرفعال کردن آیکون ساعت شنی روی دکمه بعد از کلیک
@@ -31,13 +32,30 @@ func (h *PollingHandler) HandleCallback(tenant *domain.Tenant, update tgbotapi.U
 	}
 
 	// هندل کردن دکمه‌ی اختصاصی بررسی جوین اجباری
+	//if data == "verify_force_join" {
+	//	if botHandlerTemp.CheckForceJoin(tenant, chatID) {
+	//		h.SafeBot.SafeDeleteMessage(chatID, messageID)
+	//		h.SafeBot.SafeAnswerCallback(callback.ID, "✅ عضویت شما تایید شد! ربات فعال گردید.", true)
+	//
+	//		// ارسال مجدد منوی اصلی بعد از تأیید
+	//		isAdmin := botHandlerTemp.IsSuperAdmin(chatID) || botHandlerTemp.IsAdmin(chatID)
+	//		mainMenu, _ := h.KeyboardBuilder.BuildMainMenu(tenant.ID, lang, isAdmin)
+	//		msg := tgbotapi.NewMessage(chatID, "🔓 قفل ربات باز شد. لطفاً یکی از گزینه‌های زیر را انتخاب کنید:")
+	//		msg.ReplyMarkup = mainMenu
+	//		_, _ = h.SafeBot.Bot.Send(msg)
+	//	} else {
+	//		h.SafeBot.SafeAnswerCallback(callback.ID, "❌ شما هنوز در تمام کانال‌ها عضو نشده‌اید!", true)
+	//	}
+	//	return
+	//}
+
 	if data == "verify_force_join" {
-		if botHandlerTemp.CheckForceJoin(tenant, chatID) {
+		if botHandlerTemp.CheckForceJoin(tenant, userID) {
 			h.SafeBot.SafeDeleteMessage(chatID, messageID)
 			h.SafeBot.SafeAnswerCallback(callback.ID, "✅ عضویت شما تایید شد! ربات فعال گردید.", true)
 
 			// ارسال مجدد منوی اصلی بعد از تأیید
-			isAdmin := botHandlerTemp.IsSuperAdmin(chatID) || botHandlerTemp.IsAdmin(chatID)
+			isAdmin := botHandlerTemp.IsSuperAdmin(userID) || botHandlerTemp.IsAdmin(userID)
 			mainMenu, _ := h.KeyboardBuilder.BuildMainMenu(tenant.ID, lang, isAdmin)
 			msg := tgbotapi.NewMessage(chatID, "🔓 قفل ربات باز شد. لطفاً یکی از گزینه‌های زیر را انتخاب کنید:")
 			msg.ReplyMarkup = mainMenu
@@ -49,8 +67,14 @@ func (h *PollingHandler) HandleCallback(tenant *domain.Tenant, update tgbotapi.U
 	}
 
 	// قفل کردن سایر دکمه‌های شیشه‌ای در صورت عدم عضویت (به جز ادمین)
-	if !botHandlerTemp.CheckForceJoin(tenant, chatID) {
-		h.SafeBot.SafeAnswerCallback(callback.ID, "🛑 ابتدا در کانال‌های اجباری عضو شوید.", true)
+	//if !botHandlerTemp.CheckForceJoin(tenant, chatID) {
+	//	h.SafeBot.SafeAnswerCallback(callback.ID, "🛑 ابتدا در کانال‌های اجباری عضو شوید.", true)
+	//	return
+	//}
+
+	// قفل کردن سایر دکمه‌های شیشه‌ای در صورت عدم عضویت (بررسی با userID به جای chatID)
+	if !botHandlerTemp.CheckForceJoin(tenant, userID) {
+		h.SafeBot.SafeAnswerCallback(callback.ID, "🛑 ابتدا در کانال‌های اجباری عضو شوید (پیام ربات در پی‌وی را بررسی کنید).", true)
 		return
 	}
 
@@ -375,18 +399,70 @@ func (h *PollingHandler) HandleCallback(tenant *domain.Tenant, update tgbotapi.U
 
 	// [delivery/telegram/callback_handler.go]
 	// کاربر روی دکمه پیوستن به بازی گروهی کلیک کرده است
+	//if strings.HasPrefix(data, "join_game_") {
+	//	gameIDStr := strings.TrimPrefix(data, "join_game_")
+	//	gameID, _ := strconv.Atoi(gameIDStr)
+	//
+	//	user, _ := h.UserRepo.GetUserByTelegramID(tenant.ID, chatID)
+	//	if user == nil {
+	//		h.SafeBot.SafeAnswerCallback(callback.ID, "❌ ابتدا ربات را در پی‌وی استارت بزنید.", true)
+	//		return
+	//	}
+	//
+	//	game, err := h.GameRepo.GetGameByID(tenant.ID, uint(gameID))
+	//	if err != nil || game.Status != "WAITING" {
+	//		h.SafeBot.SafeAnswerCallback(callback.ID, "❌ این بازی لغو شده یا نفر دوم قبلاً عضو شده است.", true)
+	//		return
+	//	}
+	//
+	//	if game.CreatorID == user.ID {
+	//		h.SafeBot.SafeAnswerCallback(callback.ID, "❌ شما سازنده این میز هستید و نمی‌توانید با خودتان بازی کنید!", true)
+	//		return
+	//	}
+	//
+	//	if user.PointBalance < game.BetAmount {
+	//		h.SafeBot.SafeAnswerCallback(callback.ID, "❌ موجودی امتیاز شما برای پیوستن به این شرط کافی نیست.", true)
+	//		return
+	//	}
+	//
+	//	activeGame, _ := h.GameRepo.GetActiveGameForUser(tenant.ID, user.ID)
+	//	if activeGame != nil {
+	//		h.SafeBot.SafeAnswerCallback(callback.ID, "❌ شما یک بازی در جریان دارید. ابتدا آن را تمام کنید.", true)
+	//		return
+	//	}
+	//
+	//	user.PointBalance -= game.BetAmount
+	//	_ = h.UserRepo.UpdateBalances(tenant.ID, user.ID, user.TomanBalance, user.PointBalance, user.StarsBalance)
+	//
+	//	game.JoinerID = &user.ID
+	//	game.Status = "IN_PROGRESS"
+	//	_ = h.GameRepo.UpdateGame(game)
+	//
+	//	h.SafeBot.SafeAnswerCallback(callback.ID, "✅ با موفقیت به بازی پیوستید!", false)
+	//
+	//	emoji := "🎲"
+	//	if game.GameType == "CASINO" {
+	//		emoji = "🎰"
+	//	}
+	//	startMsg := fmt.Sprintf("🔥 ظرفیت بازی تکمیل شد!\n\nهر دو شرکت‌کننده لطفاً ایموجی %s را در گروه ارسال کنید.", emoji)
+	//	h.SafeBot.SafeEditText(chatID, messageID, startMsg, nil)
+	//	return
+	//}
+
+	// کاربر روی دکمه پیوستن به بازی گروهی کلیک کرده است
 	if strings.HasPrefix(data, "join_game_") {
 		gameIDStr := strings.TrimPrefix(data, "join_game_")
 		gameID, _ := strconv.Atoi(gameIDStr)
 
-		user, _ := h.UserRepo.GetUserByTelegramID(tenant.ID, chatID)
+		// اصلاح شد: استفاده از userID (آیدی کلیک‌کننده) به جای chatID (آیدی گروه)
+		user, _ := h.UserRepo.GetUserByTelegramID(tenant.ID, userID)
 		if user == nil {
 			h.SafeBot.SafeAnswerCallback(callback.ID, "❌ ابتدا ربات را در پی‌وی استارت بزنید.", true)
 			return
 		}
 
 		game, err := h.GameRepo.GetGameByID(tenant.ID, uint(gameID))
-		if err != nil || game.Status != "WAITING" {
+		if err != nil || game == nil || game.Status != "WAITING" {
 			h.SafeBot.SafeAnswerCallback(callback.ID, "❌ این بازی لغو شده یا نفر دوم قبلاً عضو شده است.", true)
 			return
 		}
@@ -407,8 +483,8 @@ func (h *PollingHandler) HandleCallback(tenant *domain.Tenant, update tgbotapi.U
 			return
 		}
 
-		user.PointBalance -= game.BetAmount
-		_ = h.UserRepo.UpdateBalances(tenant.ID, user.ID, user.TomanBalance, user.PointBalance, user.StarsBalance)
+		// کسر امن مبلغ شرط از نفر دوم
+		_ = h.UserRepo.AddBalances(tenant.ID, user.ID, 0, -game.BetAmount, 0)
 
 		game.JoinerID = &user.ID
 		game.Status = "IN_PROGRESS"
@@ -420,8 +496,48 @@ func (h *PollingHandler) HandleCallback(tenant *domain.Tenant, update tgbotapi.U
 		if game.GameType == "CASINO" {
 			emoji = "🎰"
 		}
-		startMsg := fmt.Sprintf("🔥 ظرفیت بازی تکمیل شد!\n\nهر دو شرکت‌کننده لطفاً ایموجی %s را در گروه ارسال کنید.", emoji)
+		creatorUser, _ := h.UserRepo.GetUserByID(tenant.ID, game.CreatorID)
+		creatorName := "نفر اول"
+		if creatorUser != nil {
+			creatorName = creatorUser.FirstName
+		}
+
+		startMsg := fmt.Sprintf("🔥 *ظرفیت بازی تکمیل شد!*\n\n👤 بازیکن اول: %s\n👤 بازیکن دوم: %s\n💰 مبلغ شرط هر نفر: %.0f امتیاز\n\n👇 هر دو شرکت‌کننده لطفاً استیکر/ایموجی %s را در گروه ارسال کنید:",
+			creatorName, user.FirstName, game.BetAmount, emoji)
 		h.SafeBot.SafeEditText(chatID, messageID, startMsg, nil)
+		return
+	}
+
+	// سازنده روی دکمه لغو میز بازی کلیک کرده است
+	if strings.HasPrefix(data, "cancel_game_") {
+		gameIDStr := strings.TrimPrefix(data, "cancel_game_")
+		gameID, _ := strconv.Atoi(gameIDStr)
+
+		user, _ := h.UserRepo.GetUserByTelegramID(tenant.ID, userID)
+		if user == nil {
+			h.SafeBot.SafeAnswerCallback(callback.ID, "❌ کاربر یافت نشد.", true)
+			return
+		}
+
+		game, err := h.GameRepo.GetGameByID(tenant.ID, uint(gameID))
+		if err != nil || game == nil || game.Status != "WAITING" {
+			h.SafeBot.SafeAnswerCallback(callback.ID, "❌ امکان لغو وجود ندارد (بازی شروع شده یا قبلاً لغو شده است).", true)
+			return
+		}
+
+		if game.CreatorID != user.ID {
+			h.SafeBot.SafeAnswerCallback(callback.ID, "❌ فقط سازنده میز می‌تواند بازی را لغو کند!", true)
+			return
+		}
+
+		game.Status = "CANCELED"
+		_ = h.GameRepo.UpdateGame(game)
+
+		// بازگرداندن مبلغ شرط به حساب سازنده
+		_ = h.UserRepo.AddBalances(tenant.ID, user.ID, 0, game.BetAmount, 0)
+
+		h.SafeBot.SafeAnswerCallback(callback.ID, "✅ بازی لغو شد و امتیاز شما به حسابتان برگشت.", true)
+		h.SafeBot.SafeEditText(chatID, messageID, "❌ این میز بازی توسط سازنده لغو شد و مبلغ شرط بازگشت داده شد.", nil)
 		return
 	}
 

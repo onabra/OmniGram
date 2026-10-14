@@ -315,7 +315,7 @@ func (kb *KeyboardBuilder) BuildTaskActionMenu(taskID uint, targetLink string, t
 	)
 }
 
-// BuildGameJoinMenu دکمه شیشه‌ای برای پیوستن به میز بازی
+// BuildGameJoinMenu دکمه شیشه‌ای برای پیوستن به میز بازی و لغو توسط سازنده
 func (kb *KeyboardBuilder) BuildGameJoinMenu(gameID uint, amount float64) tgbotapi.InlineKeyboardMarkup {
 	idStr := fmt.Sprintf("%d", gameID)
 	btnText := fmt.Sprintf("🎮 پیوستن به بازی (%.0f امتیاز)", amount)
@@ -323,8 +323,22 @@ func (kb *KeyboardBuilder) BuildGameJoinMenu(gameID uint, amount float64) tgbota
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData(btnText, "join_game_"+idStr),
 		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("❌ لغو بازی (مخصوص سازنده)", "cancel_game_"+idStr),
+		),
 	)
 }
+
+// BuildGameJoinMenu دکمه شیشه‌ای برای پیوستن به میز بازی
+//func (kb *KeyboardBuilder) BuildGameJoinMenu(gameID uint, amount float64) tgbotapi.InlineKeyboardMarkup {
+//	idStr := fmt.Sprintf("%d", gameID)
+//	btnText := fmt.Sprintf("🎮 پیوستن به بازی (%.0f امتیاز)", amount)
+//	return tgbotapi.NewInlineKeyboardMarkup(
+//		tgbotapi.NewInlineKeyboardRow(
+//			tgbotapi.NewInlineKeyboardButtonData(btnText, "join_game_"+idStr),
+//		),
+//	)
+//}
 
 // BuildAdminReceiptMenu دکمه‌های تأیید فیش برای ادمین
 func (kb *KeyboardBuilder) BuildAdminReceiptMenu(receiptID uint) tgbotapi.InlineKeyboardMarkup {

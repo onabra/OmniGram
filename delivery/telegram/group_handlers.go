@@ -85,6 +85,36 @@ func (h *PollingHandler) HandleGroupMessage(tenant *domain.Tenant, message *tgbo
 			return
 		}
 
+		// لغو بازی در انتظار (در صورتی که پیام دکمه شیشه‌ای پاک شده باشد)
+		if text == "لغو بازی" {
+			user, err := h.UserRepo.GetUserByTelegramID(tenant.ID, message.From.ID)
+			if err != nil || user == nil {
+				return
+			}
+			activeGame, _ := h.GameRepo.GetActiveGameForUser(tenant.ID, user.ID)
+			if activeGame == nil {
+				msg := tgbotapi.NewMessage(message.Chat.ID, "❌ شما هیچ بازی فعالی ندارید.")
+				msg.ReplyToMessageID = message.MessageID
+				_, _ = h.SafeBot.Bot.Send(msg)
+				return
+			}
+			if activeGame.Status != "WAITING" || activeGame.CreatorID != user.ID {
+				msg := tgbotapi.NewMessage(message.Chat.ID, "❌ فقط بازی‌هایی که هنوز نفر دوم به آن‌ها نپیوسته قابل لغو هستند.")
+				msg.ReplyToMessageID = message.MessageID
+				_, _ = h.SafeBot.Bot.Send(msg)
+				return
+			}
+
+			activeGame.Status = "CANCELED"
+			_ = h.GameRepo.UpdateGame(activeGame)
+			_ = h.UserRepo.AddBalances(tenant.ID, user.ID, 0, activeGame.BetAmount, 0)
+
+			msg := tgbotapi.NewMessage(message.Chat.ID, "✅ میز بازی شما لغو شد و امتیاز شرط به حسابتان برگشت.")
+			msg.ReplyToMessageID = message.MessageID
+			_, _ = h.SafeBot.Bot.Send(msg)
+			return
+		}
+
 		// ۳. شروع بازی گروهی (تاس/کازینو)
 		if strings.HasPrefix(text, "تاس ") || strings.HasPrefix(text, "کازینو ") {
 			parts := strings.Split(text, " ")
@@ -191,7 +221,20 @@ func (h *PollingHandler) HandleGroupMessage(tenant *domain.Tenant, message *tgbo
 	}
 
 	// ۴. هندل کردن ارسال استیکر تاس/کازینو توسط کاربر
+	//if message.Dice != nil {
+	//	emoji := message.Dice.Emoji
+	//	value := message.Dice.Value
+
+	// ۴. هندل کردن ارسال استیکر تاس/کازینو توسط کاربر
 	if message.Dice != nil {
+		// جلوگیری از تقلب: نادیده گرفتن تاس‌های فوروارد شده
+		if message.ForwardDate != 0 || message.ForwardFrom != nil || message.ForwardFromChat != nil {
+			msg := tgbotapi.NewMessage(message.Chat.ID, "⚠️ فوروارد کردن تاس مجاز نیست! لطفاً مستقیماً تاس بفرستید.")
+			msg.ReplyToMessageID = message.MessageID
+			_, _ = h.SafeBot.Bot.Send(msg)
+			return
+		}
+
 		emoji := message.Dice.Emoji
 		value := message.Dice.Value
 

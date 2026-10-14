@@ -26,10 +26,29 @@ func (r *GameRepository) CreateGame(game *domain.GameSession) error {
 	return r.DB.Create(game).Error
 }
 
+//func (r *GameRepository) GetGameByID(tenantID uint, id uint) (*domain.GameSession, error) {
+//	var game domain.GameSession
+//	err := r.DB.Where("tenant_id = ? AND id = ?", tenantID, id).First(&game).Error
+//	return &game, err
+//}
+
+//func (r *GameRepository) UpdateGame(game *domain.GameSession) error {
+//	return r.DB.Save(game).Error
+//}
+
+//func (r *GameRepository) GetActiveGameForUser(tenantID uint, userID uint) (*domain.GameSession, error) {
+//	var game domain.GameSession
+//	err := r.DB.Where("tenant_id = ? AND status IN ('WAITING', 'IN_PROGRESS') AND (creator_id = ? OR joiner_id = ?)", tenantID, userID, userID).First(&game).Error
+//	return &game, err
+//}
+
 func (r *GameRepository) GetGameByID(tenantID uint, id uint) (*domain.GameSession, error) {
 	var game domain.GameSession
 	err := r.DB.Where("tenant_id = ? AND id = ?", tenantID, id).First(&game).Error
-	return &game, err
+	if err != nil {
+		return nil, err
+	}
+	return &game, nil
 }
 
 func (r *GameRepository) UpdateGame(game *domain.GameSession) error {
@@ -39,7 +58,10 @@ func (r *GameRepository) UpdateGame(game *domain.GameSession) error {
 func (r *GameRepository) GetActiveGameForUser(tenantID uint, userID uint) (*domain.GameSession, error) {
 	var game domain.GameSession
 	err := r.DB.Where("tenant_id = ? AND status IN ('WAITING', 'IN_PROGRESS') AND (creator_id = ? OR joiner_id = ?)", tenantID, userID, userID).First(&game).Error
-	return &game, err
+	if err != nil {
+		return nil, err
+	}
+	return &game, nil
 }
 
 // GetUserGameStats محاسبه دقیق آمار برد و باخت و سود و زیان یک کاربر در بازی‌ها
