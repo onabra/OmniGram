@@ -708,7 +708,7 @@ func (kb *KeyboardBuilder) BuildLeagueMainMenu() tgbotapi.InlineKeyboardMarkup {
 	)
 }
 
-// BuildAdminDrawListMenu لیست قرعه‌کشی‌ها برای ادمین
+// BuildAdminDrawListMenu لیست قرعه‌کشی‌ها و تنظیمات لیگ برای ادمین
 func (kb *KeyboardBuilder) BuildAdminDrawListMenu(draws []domain.LuckyDraw) tgbotapi.InlineKeyboardMarkup {
 	var rows [][]tgbotapi.InlineKeyboardButton
 	for _, d := range draws {
@@ -716,6 +716,13 @@ func (kb *KeyboardBuilder) BuildAdminDrawListMenu(draws []domain.LuckyDraw) tgbo
 			tgbotapi.NewInlineKeyboardButtonData(fmt.Sprintf("🎰 %s", d.Title), fmt.Sprintf("admdraw_view_%d", d.ID)),
 		))
 	}
+	rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+		tgbotapi.NewInlineKeyboardButtonData("➕ ایجاد قرعه‌کشی جدید", "admdraw_add_0"),
+	))
+	rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+		tgbotapi.NewInlineKeyboardButtonData("📝 ویرایش قوانین لیگ", "admleague_rules"),
+		tgbotapi.NewInlineKeyboardButtonData("🔄 شروع فصل جدید لیگ", "admleague_reset"),
+	))
 	if len(draws) == 0 {
 		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("✅ هیچ قرعه‌کشی فعالی وجود ندارد", "ignore"),
@@ -723,6 +730,22 @@ func (kb *KeyboardBuilder) BuildAdminDrawListMenu(draws []domain.LuckyDraw) tgbo
 	}
 	return tgbotapi.NewInlineKeyboardMarkup(rows...)
 }
+
+// BuildAdminDrawListMenu لیست قرعه‌کشی‌ها برای ادمین
+//func (kb *KeyboardBuilder) BuildAdminDrawListMenu(draws []domain.LuckyDraw) tgbotapi.InlineKeyboardMarkup {
+//	var rows [][]tgbotapi.InlineKeyboardButton
+//	for _, d := range draws {
+//		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+//			tgbotapi.NewInlineKeyboardButtonData(fmt.Sprintf("🎰 %s", d.Title), fmt.Sprintf("admdraw_view_%d", d.ID)),
+//		))
+//	}
+//	if len(draws) == 0 {
+//		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+//			tgbotapi.NewInlineKeyboardButtonData("✅ هیچ قرعه‌کشی فعالی وجود ندارد", "ignore"),
+//		))
+//	}
+//	return tgbotapi.NewInlineKeyboardMarkup(rows...)
+//}
 
 // BuildAdminDrawActionMenu منوی عملیات پایان قرعه‌کشی
 func (kb *KeyboardBuilder) BuildAdminDrawActionMenu(drawID uint) tgbotapi.InlineKeyboardMarkup {

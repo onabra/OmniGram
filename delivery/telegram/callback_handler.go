@@ -49,10 +49,33 @@ func (h *PollingHandler) HandleCallback(tenant *domain.Tenant, update tgbotapi.U
 	//	return
 	//}
 
+	//if data == "verify_force_join" {
+	//	if botHandlerTemp.CheckForceJoin(tenant, userID) {
+	//		h.SafeBot.SafeDeleteMessage(chatID, messageID)
+	//		h.SafeBot.SafeAnswerCallback(callback.ID, "✅ عضویت شما تایید شد! ربات فعال گردید.", true)
+	//
+	//		// ارسال مجدد منوی اصلی بعد از تأیید
+	//		isAdmin := botHandlerTemp.IsSuperAdmin(userID) || botHandlerTemp.IsAdmin(userID)
+	//		mainMenu, _ := h.KeyboardBuilder.BuildMainMenu(tenant.ID, lang, isAdmin)
+	//		msg := tgbotapi.NewMessage(chatID, "🔓 قفل ربات باز شد. لطفاً یکی از گزینه‌های زیر را انتخاب کنید:")
+	//		msg.ReplyMarkup = mainMenu
+	//		_, _ = h.SafeBot.Bot.Send(msg)
+	//	} else {
+	//		h.SafeBot.SafeAnswerCallback(callback.ID, "❌ شما هنوز در تمام کانال‌ها عضو نشده‌اید!", true)
+	//	}
+	//	return
+	//}
+
+	// هندل کردن دکمه‌ی اختصاصی بررسی جوین اجباری
 	if data == "verify_force_join" {
 		if botHandlerTemp.CheckForceJoin(tenant, userID) {
 			h.SafeBot.SafeDeleteMessage(chatID, messageID)
 			h.SafeBot.SafeAnswerCallback(callback.ID, "✅ عضویت شما تایید شد! ربات فعال گردید.", true)
+
+			// تأیید رفرال معلق کاربر و واریز پاداش به معرف پس از عضویت در کانال‌ها
+			if u, err := h.UserRepo.GetUserByTelegramID(tenant.ID, userID); err == nil && u != nil && h.ReferralService != nil {
+				_ = h.ReferralService.ApproveReferral(tenant, u.ID)
+			}
 
 			// ارسال مجدد منوی اصلی بعد از تأیید
 			isAdmin := botHandlerTemp.IsSuperAdmin(userID) || botHandlerTemp.IsAdmin(userID)
@@ -1069,11 +1092,19 @@ func (h *PollingHandler) HandleCallback(tenant *domain.Tenant, update tgbotapi.U
 			} else {
 				msgText.WriteString("👤 رتبهٔ شما: خارج از رتبه‌بندی\n\n")
 			}
-
-			msgText.WriteString("🎁 *پاداش‌های Milestone:*\nدعوت اول: ۱ امتیاز\n۵ دعوت: ۵+ امتیاز جایزه\n۱۰ دعوت: ۱۵+ امتیاز جایزه\n۲۵ دعوت: ۵۰+ امتیاز جایزه")
+			if tenant.LeagueRules != "" {
+				msgText.WriteString(fmt.Sprintf("📜 *قوانین و جوایز لیگ:*\n%s", tenant.LeagueRules))
+			} else {
+				msgText.WriteString("🎁 *پاداش‌های Milestone:*\nدعوت اول: ۱ امتیاز\n۵ دعوت: ۵+ امتیاز جایزه\n۱۰ دعوت: ۱۵+ امتیاز جایزه\n۲۵ دعوت: ۵۰+ امتیاز جایزه")
+			}
 
 			markup := tgbotapi.NewInlineKeyboardMarkup(tgbotapi.NewInlineKeyboardRow(tgbotapi.NewInlineKeyboardButtonData("🔙 بازگشت", "league_main")))
 			h.SafeBot.SafeEditText(chatID, messageID, msgText.String(), &markup)
+
+			//msgText.WriteString("🎁 *پاداش‌های Milestone:*\nدعوت اول: ۱ امتیاز\n۵ دعوت: ۵+ امتیاز جایزه\n۱۰ دعوت: ۱۵+ امتیاز جایزه\n۲۵ دعوت: ۵۰+ امتیاز جایزه")
+			//
+			//markup := tgbotapi.NewInlineKeyboardMarkup(tgbotapi.NewInlineKeyboardRow(tgbotapi.NewInlineKeyboardButtonData("🔙 بازگشت", "league_main")))
+			//h.SafeBot.SafeEditText(chatID, messageID, msgText.String(), &markup)
 
 		case "draws":
 			draws, err := h.DrawRepo.GetActiveDraws(tenant.ID)
@@ -1711,24 +1742,72 @@ func (h *PollingHandler) HandleCallback(tenant *domain.Tenant, update tgbotapi.U
 		}
 		return
 	}
+	if strings.HasPrefix(data, "admleague_") {
+		if !botHandlerTemp.IsSuperAdmin(userID) && !botHandlerTemp.IsAdmin(userID) {
+			return
+		}
+		adminUser, _ := h.UserRepo.GetUserByTelegramID(tenant.ID, userID)
+		if data == "admleague_rules" {
+			_ = h.UserRepo.UpdateUserState(tenant.ID, adminUser.ID, domain.StateAdminWaitLeagueRules)
+			h.SafeBot.SafeAnswerCallback(callback.ID, "ویرایش قوانین لیگ", false)
+			_, _ = h.SafeBot.Bot.Send(tgbotapi.NewMessage(chatID, "📝 لطفاً **متن جدید قوانین و جوایز لیگ** را ارسال کنید:"))
+			return
+		}
+		if data == "admleague_reset" {
+			_ = h.RefRepo.ResetLeagueReferrals(tenant.ID)
+			h.SafeBot.SafeAnswerCallback(callback.ID, "✅ فصل جدید لیگ آغاز شد و جدول امتیازات ریست گردید.", true)
+			return
+		}
+	}
 
 	// مدیریت قرعه‌کشی‌ها (ادمین)
 	if strings.HasPrefix(data, "admdraw_") {
-		if !botHandlerTemp.IsSuperAdmin(chatID) && !botHandlerTemp.IsAdmin(chatID) {
+		if !botHandlerTemp.IsSuperAdmin(userID) && !botHandlerTemp.IsAdmin(userID) {
 			return
 		}
 		parts := strings.Split(data, "_")
 		if len(parts) < 3 {
 			return
 		}
-		action := parts[1] // view, roll
-		drawID, _ := strconv.Atoi(parts[2])
+		action := parts[1] // add, view, roll
 
+		if action == "add" {
+			adminUser, _ := h.UserRepo.GetUserByTelegramID(tenant.ID, userID)
+			_ = h.UserRepo.UpdateUserState(tenant.ID, adminUser.ID, domain.StateAdminWaitNewDrawData)
+			h.SafeBot.SafeAnswerCallback(callback.ID, "ایجاد قرعه‌کشی جدید", false)
+			guide := "🎰 *ایجاد قرعه‌کشی جدید*\n\n" +
+				"لطفاً اطلاعات قرعه‌کشی را با جداکننده `|` به فرمت زیر ارسال کنید:\n\n" +
+				"`عنوان | توضیحات | هزینه تیکت | ظرفیت کل | تعداد برنده | مبلغ جایزه | نوع جایزه (STARS/POINT/TOMAN) | مهلت به روز`\n\n" +
+				"💡 *مثال:*\n" +
+				"`قرعه‌کشی بزرگ پاییزه | ویژه اعضا | 1 | 500 | 3 | 50 | STARS | 7`"
+			msg := tgbotapi.NewMessage(chatID, guide)
+			msg.ParseMode = "Markdown"
+			_, _ = h.SafeBot.Bot.Send(msg)
+			return
+		}
+
+		drawID, _ := strconv.Atoi(parts[2])
 		draw, err := h.DrawRepo.GetDrawByID(tenant.ID, uint(drawID))
 		if err != nil || draw.Status != "ACTIVE" {
 			h.SafeBot.SafeAnswerCallback(callback.ID, "❌ مسابقه یافت نشد یا قبلاً تمام شده است.", true)
 			return
 		}
+		//if strings.HasPrefix(data, "admdraw_") {
+		//	if !botHandlerTemp.IsSuperAdmin(chatID) && !botHandlerTemp.IsAdmin(chatID) {
+		//		return
+		//	}
+		//	parts := strings.Split(data, "_")
+		//	if len(parts) < 3 {
+		//		return
+		//	}
+		//	action := parts[1] // view, roll
+		//	drawID, _ := strconv.Atoi(parts[2])
+		//
+		//	draw, err := h.DrawRepo.GetDrawByID(tenant.ID, uint(drawID))
+		//	if err != nil || draw.Status != "ACTIVE" {
+		//		h.SafeBot.SafeAnswerCallback(callback.ID, "❌ مسابقه یافت نشد یا قبلاً تمام شده است.", true)
+		//		return
+		//	}
 
 		if action == "view" {
 			totalEntries, _ := h.DrawRepo.GetTotalEntries(tenant.ID, draw.ID)

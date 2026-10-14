@@ -37,6 +37,8 @@ type PollingHandler struct {
 	ForceJoinRepo   *repository.ForceJoinRepository
 	WithdrawalRepo  *repository.WithdrawalRepository
 
+	ReferralService *services.ReferralService
+
 	AdminRepo *repository.AdminRepository
 
 	SuperAdminIDs []int64
@@ -52,6 +54,11 @@ func (h *PollingHandler) StartPolling() {
 	h.SafeBot = &SafeBot{
 		Bot:          bot,
 		LogChannelID: h.LogChannelID,
+	}
+	h.ReferralService = &services.ReferralService{
+		UserRepo:  h.UserRepo,
+		RefRepo:   h.RefRepo,
+		BotClient: h.SafeBot,
 	}
 	if h.Logger != nil {
 		h.Logger.AttachReporter(h.SafeBot)
@@ -139,6 +146,7 @@ func (h *PollingHandler) processUpdateWithRecovery(update tgbotapi.Update) {
 			AdminRepo:       h.AdminRepo,
 			DrawRepo:        h.DrawRepo,     // تزریق شده از بلوک‌های تکراری
 			CategoryRepo:    h.CategoryRepo, // تزریق شده از بلوک‌های تکراری
+			ReferralService: h.ReferralService,
 		}
 
 		adminUser, _ := botHandler.UserRepo.GetUserByTelegramID(tenant.ID, chatID)

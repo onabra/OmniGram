@@ -54,6 +54,10 @@ const (
 	StateAdminWaitOrderSearch UserState = "ADMIN_WAIT_ORDER_SEARCH" // ادمین در انتظار ارسال کد رهگیری سفارش
 
 	StateAdminWaitNewTaskData UserState = "ADMIN_WAIT_NEW_TASK_DATA" // ادمین در انتظار ارسال اطلاعات تسک جدید
+
+	StateAdminWaitNewDrawData UserState = "ADMIN_WAIT_NEW_DRAW_DATA" // ادمین در انتظار ارسال اطلاعات قرعه‌کشی جدید
+	StateAdminWaitLeagueRules UserState = "ADMIN_WAIT_LEAGUE_RULES"  // ادمین در انتظار ارسال متن قوانین لیگ
+
 )
 
 // Tenant (موجودیت اصلی برای معماری SaaS)
@@ -70,6 +74,7 @@ type Tenant struct {
 	DollarPrice         float64 `gorm:"default:60000"` //  قیمت روز دلار (تومان)
 	PointToTomanRate    float64 `gorm:"default:800"`   //  هر ۱ امتیاز معادل این مقدار تومان است
 	PointToStarRate     float64 `gorm:"default:3.0"`   //  هر ۱ استارز نیازمند این مقدار امتیاز است
+	LeagueRules         string  // قوانین و جوایز لیگ قابل ویرایش توسط کارفرما
 	CreatedAt           time.Time
 	UpdatedAt           time.Time
 }
@@ -152,7 +157,9 @@ type Referral struct {
 	ReferredID   uint   `gorm:"index"` // شناسه کاربر دعوت شده (زیرمجموعه)
 	ReferralType string // نوع لینک: استارز، گیفت، لیگ، یا قرعه‌کشی[cite: 1]
 	// با استفاده از تگ‌های gorm باید یکتایی (Unique) روی ترکیب ReferrerID, ReferredID و ReferralType ایجاد شود تا از تداخل جلوگیری شود[cite: 1]
-	Status string `gorm:"default:'PENDING'"` // مقادیر: PENDING, APPROVED, REJECTED
+	IsReactivation bool   `gorm:"default:false"`
+	Status         string `gorm:"default:'PENDING'"` // مقادیر: PENDING, APPROVED, REJECTED
+	CreatedAt      time.Time
 }
 
 // Task (وظایف، ظرفیت‌ها و جریمه‌ها)

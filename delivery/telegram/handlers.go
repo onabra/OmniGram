@@ -41,50 +41,118 @@ type BotHandler struct {
 }
 
 // HandleStart مدیریت دستور /start
-func (h *BotHandler) HandleStart(tenant *domain.Tenant, chatID int64, lang string, text string) {
+//func (h *BotHandler) HandleStart(tenant *domain.Tenant, chatID int64, lang string, text string) {
+//
+//	user, _ := h.UserRepo.GetUserByTelegramID(tenant.ID, chatID)
+//	if user != nil {
+//		_ = h.UserRepo.UpdateUserState(tenant.ID, user.ID, domain.StateNormal)
+//	}
+//
+//	if !h.CheckForceJoin(tenant, chatID) {
+//		return
+//	}
+//	if !h.CheckForceJoin(tenant, chatID) {
+//		return
+//	}
+//	// پردازش لینک رفرال (در صورت وجود)
+//	parts := strings.Split(text, " ")
+//	if len(parts) > 1 && strings.HasPrefix(parts[1], "ref_") {
+//		refPayload := strings.TrimPrefix(parts[1], "ref_")
+//		payloadParts := strings.Split(refPayload, "_")
+//
+//		if len(payloadParts) == 2 {
+//			refType := payloadParts[0] // نوع رفرال (stars, gift, league, lottery)
+//			referrerID, err := strconv.ParseUint(payloadParts[1], 10, 32)
+//
+//			if err == nil && h.ReferralService != nil {
+//				// ثبت رفرال به صورت معلق (PENDING)
+//				_ = h.ReferralService.ProcessReferral(tenant.ID, uint(referrerID), chatID, refType)
+//			}
+//		}
+//	}
+//	// گرفتن پیام خوش‌آمدگویی بدون هاردکد[cite: 4]
+//	welcomeMsg, err := h.TranslationRepo.GetText(tenant.ID, lang, "msg_welcome")
+//	if err != nil {
+//		log.Println("Error getting translation:", err)
+//		welcomeMsg = "Welcome!" // فال‌بک ضروری
+//	}
+//
+//	// ساخت منوی اصلی
+//	isAdmin := h.IsSuperAdmin(chatID) || h.IsAdmin(chatID)
+//	mainMenu, err := h.KeyboardBuilder.BuildMainMenu(tenant.ID, lang, isAdmin)
+//	if err != nil {
+//		log.Println("Error building menu:", err)
+//	}
+//
+//	// ارسال امن پیام به همراه کیبورد
+//	msg := tgbotapi.NewMessage(chatID, welcomeMsg)
+//	msg.ReplyMarkup = mainMenu
+//
+//	if _, err := h.SafeBot.Bot.Send(msg); err != nil {
+//		h.SafeBot.SendLogToChannel(err.Error())
+//	}
+//}
 
-	user, _ := h.UserRepo.GetUserByTelegramID(tenant.ID, chatID)
-	if user != nil {
+// HandleStart مدیریت دستور /start و ثبت اولیه رفرال پیش از قفل جوین اجباری
+func (h *BotHandler) HandleStart(tenant *domain.Tenant, chatID int64, lang string, text string) {
+	isNewUser := false
+	user, err := h.UserRepo.GetUserByTelegramID(tenant.ID, chatID)
+	if err != nil || user == nil {
+		isNewUser = true
+		user = &domain.User{
+			TenantID:       tenant.ID,
+			TelegramID:     chatID,
+			FirstName:      "کاربر",
+			Language:       lang,
+			LastActiveDate: time.Now(),
+			State:          domain.StateNormal,
+		}
+		_ = h.UserRepo.CreateUser(user)
+	} else {
 		_ = h.UserRepo.UpdateUserState(tenant.ID, user.ID, domain.StateNormal)
 	}
 
-	if !h.CheckForceJoin(tenant, chatID) {
-		return
-	}
-	if !h.CheckForceJoin(tenant, chatID) {
-		return
-	}
-	// پردازش لینک رفرال (در صورت وجود)
-	parts := strings.Split(text, " ")
-	if len(parts) > 1 && strings.HasPrefix(parts[1], "ref_") {
-		refPayload := strings.TrimPrefix(parts[1], "ref_")
+	// ۱. پردازش لینک رفرال (قبل از CheckForceJoin تا در صورت قفل بودن ربات، رفرال به صورت PENDING ذخیره شود)
+	parts := strings.Fields(text)
+	if len(parts) > 1 {
+		refPayload := strings.TrimPrefix(parts[1], "ref_") // پشتیبانی از هر دو فرمت ref_league_1 و league_1
 		payloadParts := strings.Split(refPayload, "_")
 
 		if len(payloadParts) == 2 {
-			refType := payloadParts[0] // نوع رفرال (stars, gift, league, lottery)
+			refType := payloadParts[0] // league, draw, lottery, point, wallet, stars, gift
 			referrerID, err := strconv.ParseUint(payloadParts[1], 10, 32)
 
 			if err == nil && h.ReferralService != nil {
-				// ثبت رفرال به صورت معلق (PENDING)
-				_ = h.ReferralService.ProcessReferral(tenant.ID, uint(referrerID), chatID, refType)
+				_ = h.ReferralService.ProcessReferral(tenant, uint(referrerID), chatID, refType, isNewUser)
 			}
 		}
 	}
-	// گرفتن پیام خوش‌آمدگویی بدون هاردکد[cite: 4]
-	welcomeMsg, err := h.TranslationRepo.GetText(tenant.ID, lang, "msg_welcome")
-	if err != nil {
-		log.Println("Error getting translation:", err)
-		welcomeMsg = "Welcome!" // فال‌بک ضروری
+
+	// ۲. بروزرسانی تاریخ آخرین فعالیت کاربر (پس از بررسی شرط ۱۰ روز خاموشی در ProcessReferral)
+	_ = h.UserRepo.UpdateLastActive(tenant.ID, user.ID)
+
+	// ۳. بررسی عضویت در کانال‌های جوین اجباری
+	if !h.CheckForceJoin(tenant, chatID) {
+		return
 	}
 
-	// ساخت منوی اصلی
+	// ۴. اگر کاربر در کانال‌های اجباری عضو بود (یا کانالی وجود نداشت)، رفرال معلق او را تایید کن
+	if h.ReferralService != nil {
+		_ = h.ReferralService.ApproveReferral(tenant, user.ID)
+	}
+
+	// ۵. نمایش پیام خوش‌آمدگویی و منوی اصلی
+	welcomeMsg, err := h.TranslationRepo.GetText(tenant.ID, lang, "msg_welcome")
+	if err != nil || welcomeMsg == "" {
+		welcomeMsg = "به ربات خوش آمدید!"
+	}
+
 	isAdmin := h.IsSuperAdmin(chatID) || h.IsAdmin(chatID)
 	mainMenu, err := h.KeyboardBuilder.BuildMainMenu(tenant.ID, lang, isAdmin)
 	if err != nil {
 		log.Println("Error building menu:", err)
 	}
 
-	// ارسال امن پیام به همراه کیبورد
 	msg := tgbotapi.NewMessage(chatID, welcomeMsg)
 	msg.ReplyMarkup = mainMenu
 
@@ -139,15 +207,29 @@ func (h *BotHandler) HandleMessage(tenant *domain.Tenant, chatID int64, text str
 	currentUser, err := h.UserRepo.GetUserByTelegramID(tenant.ID, chatID)
 
 	// اگر کاربر در دیتابیس نبود، او را ثبت می‌کنیم
+	//if err != nil || currentUser == nil {
+	//	currentUser = &domain.User{
+	//		TenantID:   tenant.ID,
+	//		TelegramID: chatID,
+	//		FirstName:  "کاربر", // در آینده می‌توانید نام اصلی را از update.Message بگیرید
+	//		Language:   lang,
+	//		State:      domain.StateNormal,
+	//	}
+	//	_ = h.UserRepo.CreateUser(currentUser)
+	//}
+	// اگر کاربر در دیتابیس نبود، او را ثبت می‌کنیم
 	if err != nil || currentUser == nil {
 		currentUser = &domain.User{
-			TenantID:   tenant.ID,
-			TelegramID: chatID,
-			FirstName:  "کاربر", // در آینده می‌توانید نام اصلی را از update.Message بگیرید
-			Language:   lang,
-			State:      domain.StateNormal,
+			TenantID:       tenant.ID,
+			TelegramID:     chatID,
+			FirstName:      "کاربر",
+			Language:       lang,
+			LastActiveDate: time.Now(),
+			State:          domain.StateNormal,
 		}
 		_ = h.UserRepo.CreateUser(currentUser)
+	} else {
+		_ = h.UserRepo.UpdateLastActive(tenant.ID, currentUser.ID)
 	}
 
 	// --- جستجو و مدیریت سفارش توسط ادمین ---
@@ -857,6 +939,63 @@ func (h *BotHandler) HandleMessage(tenant *domain.Tenant, chatID int64, text str
 		}
 	}
 
+	// --- ویرایش قوانین لیگ توسط ادمین ---
+	if currentUser.State == domain.StateAdminWaitLeagueRules {
+		if text == backMainBtnText {
+			_ = h.UserRepo.UpdateUserState(tenant.ID, currentUser.ID, domain.StateNormal)
+		} else {
+			tenant.LeagueRules = text
+			_ = h.AdminRepo.UpdateTenantSetting(tenant)
+			_ = h.SafeBot.SendMessage(chatID, "✅ قوانین و جوایز لیگ با موفقیت بروزرسانی شد.")
+			_ = h.UserRepo.UpdateUserState(tenant.ID, currentUser.ID, domain.StateNormal)
+			return
+		}
+	}
+
+	// --- ایجاد قرعه‌کشی جدید توسط ادمین ---
+	if currentUser.State == domain.StateAdminWaitNewDrawData {
+		if text == backMainBtnText {
+			_ = h.UserRepo.UpdateUserState(tenant.ID, currentUser.ID, domain.StateNormal)
+		} else {
+			parts := strings.Split(text, "|")
+			if len(parts) < 8 {
+				_ = h.SafeBot.SendMessage(chatID, "❌ فرمت ارسالی ناقص است. هر ۸ بخش را با `|` جدا کنید.")
+				return
+			}
+			title := strings.TrimSpace(parts[0])
+			desc := strings.TrimSpace(parts[1])
+			ticketCost, err1 := strconv.Atoi(strings.TrimSpace(parts[2]))
+			maxPart, err2 := strconv.Atoi(strings.TrimSpace(parts[3]))
+			winnersCount, err3 := strconv.Atoi(strings.TrimSpace(parts[4]))
+			rewardAmount, err4 := strconv.ParseFloat(strings.TrimSpace(parts[5]), 64)
+			rewardType := strings.ToUpper(strings.TrimSpace(parts[6]))
+			days, err5 := strconv.Atoi(strings.TrimSpace(parts[7]))
+
+			if err1 != nil || err2 != nil || err3 != nil || err4 != nil || err5 != nil || winnersCount <= 0 || days <= 0 {
+				_ = h.SafeBot.SendMessage(chatID, "❌ مقادیر عددی نامعتبر هستند.")
+				return
+			}
+
+			newDraw := &domain.LuckyDraw{
+				TenantID:        tenant.ID,
+				Title:           title,
+				Description:     desc,
+				TicketCost:      ticketCost,
+				MaxParticipants: maxPart,
+				WinnersCount:    winnersCount,
+				RewardPerWinner: rewardAmount,
+				RewardType:      rewardType,
+				Status:          "ACTIVE",
+				EndDate:         time.Now().AddDate(0, 0, days),
+			}
+			_ = h.DrawRepo.CreateDraw(newDraw)
+
+			_ = h.SafeBot.SendMessage(chatID, fmt.Sprintf("✅ قرعه‌کشی «%s» با موفقیت ایجاد و در بخش لیگ فعال شد.", title))
+			_ = h.UserRepo.UpdateUserState(tenant.ID, currentUser.ID, domain.StateNormal)
+			return
+		}
+	}
+
 	switch text {
 
 	case btnConvert:
@@ -1138,31 +1277,35 @@ func (h *BotHandler) HandleMessage(tenant *domain.Tenant, chatID int64, text str
 
 	default:
 		if strings.HasPrefix(text, "انتقال") && currentUser != nil && h.WalletService != nil {
-			// پردازش لینک‌های رفرال ۴ گانه مستقل (در صورت وجود)
-			parts := strings.Split(text, " ")
-			if len(parts) > 1 {
-				payload := parts[1] // نمونه: league_123456
-				payloadParts := strings.Split(payload, "_")
-
-				if len(payloadParts) == 2 {
-					refType := payloadParts[0] // باید یکی از این ۴ مقدار باشد: league, draw, point, wallet
-					referrerID, err := strconv.ParseUint(payloadParts[1], 10, 32)
-
-					if err == nil && (refType == "league" || refType == "draw" || refType == "point" || refType == "wallet") {
-						if h.ReferralService != nil {
-							// ثبت رفرال به صورت معلق (PENDING)
-							_ = h.ReferralService.ProcessReferral(tenant.ID, uint(referrerID), chatID, refType)
-						}
-					}
-				}
+			parts := strings.Fields(text)
+			if len(parts) != 4 {
+				_ = h.SafeBot.SendMessage(chatID, "❌ فرمت دستور اشتباه است. نمونه صحیح:\n`انتقال 123456789 10 POINT`")
+				return
 			}
-			//parts := strings.Split(text, " ")
-			//if len(parts) != 4 {
-			//	_ = h.SafeBot.SendMessage(chatID, "فرمت دستور اشتباه است. روی دکمه انتقال کلیک کنید تا راهنما را ببینید.")
-			//	return
-			//}
 
 			destTelegramID, errID := strconv.ParseInt(parts[1], 10, 64)
+			//default:
+			//	if strings.HasPrefix(text, "انتقال") && currentUser != nil && h.WalletService != nil {
+			//		// پردازش لینک‌های رفرال ۴ گانه مستقل (در صورت وجود)
+			//		parts := strings.Split(text, " ")
+			//		if len(parts) > 1 {
+			//			payload := parts[1] // نمونه: league_123456
+			//			payloadParts := strings.Split(payload, "_")
+			//
+			//			if len(payloadParts) == 2 {
+			//				refType := payloadParts[0] // باید یکی از این ۴ مقدار باشد: league, draw, point, wallet
+			//				referrerID, err := strconv.ParseUint(payloadParts[1], 10, 32)
+			//
+			//				if err == nil && (refType == "league" || refType == "draw" || refType == "point" || refType == "wallet") {
+			//					if h.ReferralService != nil {
+			//						// ثبت رفرال به صورت معلق (PENDING)
+			//						_ = h.ReferralService.ProcessReferral(tenant.ID, uint(referrerID), chatID, refType)
+			//					}
+			//				}
+			//			}
+			//		}
+			//
+			//		destTelegramID, errID := strconv.ParseInt(parts[1], 10, 64)
 			amount, errAmount := strconv.ParseFloat(parts[2], 64)
 			currency := strings.ToUpper(parts[3])
 
@@ -1355,28 +1498,3 @@ func (h *BotHandler) CheckForceJoin(tenant *domain.Tenant, chatID int64) bool {
 
 	return true
 }
-
-//func (h *BotHandler) HandleMessage(tenant *domain.Tenant, chatID int64, text string, lang string) {
-//	// فراخوانی عنوان دکمه توسعه‌دهنده برای مقایسه با پیام ارسالی
-//	devBtnText, _ := h.TranslationRepo.GetText(tenant.ID, lang, "btn_developer")
-//
-//	switch text {
-//	case devBtnText:
-//		// فراخوانی متن معرفی توسعه‌دهنده از دیتابیس
-//		devDesc, _ := h.TranslationRepo.GetText(tenant.ID, lang, "msg_dev_description")
-//
-//		// لینک دایرکت تلگرام شما (می‌تواند از دیتابیس خوانده شود یا در تنظیمات تنظیم شود)
-//		developerURL := "https://t.me/YourDirectUsername"
-//
-//		inlineMenu, _ := h.KeyboardBuilder.BuildDeveloperInlineMenu(tenant.ID, lang, developerURL)
-//
-//		msg := tgbotapi.NewMessage(chatID, devDesc)
-//		msg.ReplyMarkup = inlineMenu
-//
-//		_, _ = h.SafeBot.Bot.Send(msg)
-//
-//	// سایر دکمه‌ها در اینجا هندل می‌شوند...
-//	default:
-//		// ...
-//	}
-//}

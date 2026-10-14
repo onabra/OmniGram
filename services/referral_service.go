@@ -3,7 +3,9 @@ package services
 import (
 	"OmniGram/domain"
 	"OmniGram/repository"
+	"errors"
 	"fmt"
+	"time"
 )
 
 // MessageSender یک اینترفیس برای جلوگیری از وابستگی مستقیم به SafeBot
@@ -14,27 +16,47 @@ type MessageSender interface {
 type ReferralService struct {
 	UserRepo  repository.UserRepository
 	RefRepo   *repository.ReferralRepository
-	BotClient MessageSender // جایگزین TelegramClient شد
+	BotClient MessageSender
 }
 
-func (s *ReferralService) ProcessReferral(tenantID uint, referrerID uint, referredTelegramID int64, refType string) error {
-	referredUser, err := s.UserRepo.GetUserByTelegramID(tenantID, referredTelegramID)
-	if err != nil {
+func (s *ReferralService) ProcessReferral(tenant *domain.Tenant, referrerID uint, referredTelegramID int64, refType string, isNewUser bool) error {
+	referredUser, err := s.UserRepo.GetUserByTelegramID(tenant.ID, referredTelegramID)
+	if err != nil || referredUser == nil {
 		return err
 	}
 
-	// دریافت اطلاعات معرف برای ارسال پیام
-	referrerUser, err := s.UserRepo.GetUserByID(tenantID, referrerID)
-	if err != nil {
+	// ۱. جلوگیری از دعوت خود
+	if referrerID == referredUser.ID {
+		return errors.New("SELF_REFERRAL")
+	}
+
+	referrerUser, err := s.UserRepo.GetUserByID(tenant.ID, referrerID)
+	if err != nil || referrerUser == nil {
 		return err
+	}
+
+	// ۲. بررسی وضعیت کاربر (کاربر کاملاً جدید یا مشمول قانون ۱۰ روز خاموشی)
+	isReactivation := false
+	if !isNewUser {
+		inactiveDays := time.Since(referredUser.LastActiveDate).Hours() / 24.0
+		if !referredUser.LastActiveDate.IsZero() && inactiveDays >= 10.0 {
+			isReactivation = true
+		} else if s.RefRepo.HasEverBeenReferred(tenant.ID, referredUser.ID) {
+			return errors.New("ALREADY_REFERRED")
+		} else {
+			// کاربری که قبلاً بدون رفرال در ربات بوده و فعال است، زیرمجموعه جدید محسوب نمی‌شود
+			return errors.New("ALREADY_ACTIVE_USER")
+		}
 	}
 
 	newReferral := &domain.Referral{
-		TenantID:     tenantID,
-		ReferrerID:   referrerID,
-		ReferredID:   referredUser.ID,
-		ReferralType: refType,
-		Status:       "PENDING",
+		TenantID:       tenant.ID,
+		ReferrerID:     referrerID,
+		ReferredID:     referredUser.ID,
+		ReferralType:   refType,
+		IsReactivation: isReactivation,
+		Status:         "PENDING",
+		CreatedAt:      time.Now(),
 	}
 
 	err = s.RefRepo.Create(newReferral)
@@ -42,17 +64,16 @@ func (s *ReferralService) ProcessReferral(tenantID uint, referrerID uint, referr
 		return err
 	}
 
-	// استفاده از اینترفیس برای ارسال پیام
 	if s.BotClient != nil {
-		msg := "کاربر " + referredUser.FirstName + " از طریق لینک شما وارد بات شد. پس از انجام وظایف اجباری، امتیاز شما تایید خواهد شد."
+		msg := fmt.Sprintf("👤 کاربر %s از طریق لینک شما وارد ربات شد.\n⏳ پس از عضویت در کانال‌های حامی، پاداش شما واریز خواهد شد.", referredUser.FirstName)
 		_ = s.BotClient.SendMessage(referrerUser.TelegramID, msg)
 	}
 
 	return nil
 }
 
-func (s *ReferralService) ApproveReferral(tenantID uint, referredUserID uint) error {
-	referral, err := s.RefRepo.GetPendingReferral(tenantID, referredUserID)
+func (s *ReferralService) ApproveReferral(tenant *domain.Tenant, referredUserID uint) error {
+	referral, err := s.RefRepo.GetPendingReferral(tenant.ID, referredUserID)
 	if err != nil || referral == nil {
 		return nil
 	}
@@ -63,33 +84,53 @@ func (s *ReferralService) ApproveReferral(tenantID uint, referredUserID uint) er
 		return err
 	}
 
-	referrerUser, err := s.UserRepo.GetUserByID(tenantID, referral.ReferrerID)
-	if err != nil {
+	referrerUser, err := s.UserRepo.GetUserByID(tenant.ID, referral.ReferrerID)
+	if err != nil || referrerUser == nil {
 		return err
 	}
 
+	// ضریب پاداش (۱۰۰٪ برای کاربر جدید، ۵۰٪ برای کاربر غیرفعال بیش از ۱۰ روز طبق معماری)
+	multiplier := 1.0
+	if referral.IsReactivation {
+		multiplier = 0.5
+	}
+
 	successMsg := "✅ یک زیرمجموعه جدید برای شما تایید شد:\n\n"
+	if referral.IsReactivation {
+		successMsg = "♻️ یک کاربر غیرفعال (بیش از ۱۰ روز خاموشی) با لینک شما به ربات بازگشت (۵۰٪ پاداش):\n\n"
+	}
 
 	switch referral.ReferralType {
 	case "league":
-		successMsg += "🏆 شما یک رفرال معتبر در **لیگ** کسب کردید!"
-	case "draw":
-		stats, _ := s.RefRepo.GetReferralStats(tenantID, referral.ReferrerID)
-		if stats.DrawTotal > 0 && stats.DrawTotal%3 == 0 {
+		successMsg += "🏆 شما یک دعوت معتبر در **لیگ رفرال** کسب کردید!"
+	case "draw", "lottery":
+		stats, _ := s.RefRepo.GetReferralStats(tenant.ID, referral.ReferrerID)
+		if stats != nil && stats.DrawTotal > 0 && stats.DrawTotal%3 == 0 {
 			referrerUser.DrawTickets += 1
-			_ = s.UserRepo.UpdateDrawTickets(tenantID, referrerUser.ID, referrerUser.DrawTickets)
-			successMsg += "🎰 شما 1 تیکت قرعه‌کشی جدید دریافت کردید! 🎟"
-		} else {
-			successMsg += fmt.Sprintf("🎰 رفرال قرعه‌کشی ثبت شد. (%d رفرال تا دریافت تیکت بعدی)", 3-(stats.DrawTotal%3))
+			_ = s.UserRepo.UpdateDrawTickets(tenant.ID, referrerUser.ID, referrerUser.DrawTickets)
+			successMsg += "🎰 شما ۱ تیکت قرعه‌کشی جدید دریافت کردید! 🎟"
+		} else if stats != nil {
+			successMsg += fmt.Sprintf("🎰 رفرال قرعه‌کشی ثبت شد. (%d دعوت دیگر تا دریافت تیکت بعدی)", 3-(stats.DrawTotal%3))
 		}
 	case "point":
-		referrerUser.PointBalance += 1.0
-		_ = s.UserRepo.UpdateBalances(tenantID, referrerUser.ID, referrerUser.TomanBalance, referrerUser.PointBalance, referrerUser.StarsBalance)
-		successMsg += "⭐ شما ۱ امتیاز دریافت کردید!"
+		reward := 1.0 * multiplier
+		if referral.IsReactivation && tenant.InactiveBonusAmount > 0 {
+			reward = tenant.InactiveBonusAmount
+		}
+		_ = s.UserRepo.AddBalances(tenant.ID, referrerUser.ID, 0, reward, 0)
+		successMsg += fmt.Sprintf("⭐ مقدار %.1f امتیاز به حساب شما اضافه شد!", reward)
+	case "stars":
+		reward := 1.0 * multiplier
+		_ = s.UserRepo.AddBalances(tenant.ID, referrerUser.ID, 0, 0, reward)
+		successMsg += fmt.Sprintf("🌟 مقدار %.1f استارز به حساب شما اضافه شد!", reward)
+	case "gift":
+		reward := 2.0 * multiplier
+		_ = s.UserRepo.AddBalances(tenant.ID, referrerUser.ID, 0, reward, 0)
+		successMsg += fmt.Sprintf("🎁 مقدار %.1f امتیاز گیفت به حساب شما اضافه شد!", reward)
 	case "wallet":
-		referrerUser.TomanBalance += 2000.0 // این مبلغ می‌تواند در آینده از تنظیمات ادمین خوانده شود
-		_ = s.UserRepo.UpdateBalances(tenantID, referrerUser.ID, referrerUser.TomanBalance, referrerUser.PointBalance, referrerUser.StarsBalance)
-		successMsg += "💰 مبلغ 2,000 تومان به کیف پول شما اضافه شد!"
+		reward := 2000.0 * multiplier
+		_ = s.UserRepo.AddBalances(tenant.ID, referrerUser.ID, reward, 0, 0)
+		successMsg += fmt.Sprintf("💰 مبلغ %.0f تومان به کیف پول شما اضافه شد!", reward)
 	}
 
 	if s.BotClient != nil {

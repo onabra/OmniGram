@@ -56,3 +56,8 @@ func (r *DrawRepository) GetDrawEntries(tenantID uint, drawID uint) ([]domain.Dr
 	err := r.DB.Where("tenant_id = ? AND lucky_draw_id = ?", tenantID, drawID).Find(&entries).Error
 	return entries, err
 }
+
+// CreateDraw ایجاد یک قرعه‌کشی جدید توسط ادمین
+func (r *DrawRepository) CreateDraw(draw *domain.LuckyDraw) error {
+	return r.DB.Create(draw).Error
+}

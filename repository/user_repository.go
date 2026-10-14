@@ -24,6 +24,7 @@ type UserRepository interface {
 	UpdateAdminTicketTarget(tenantID uint, adminID uint, ticketID uint) error
 	GetAllUserTelegramIDs(tenantID uint) ([]int64, error)
 	UpdateLastFreeGift(tenantID uint, userID uint, date time.Time) error
+	UpdateLastActive(tenantID uint, userID uint) error
 }
 
 type userRepository struct {
@@ -157,4 +158,11 @@ func (r *userRepository) UpdateLastFreeGift(tenantID uint, userID uint, date tim
 	return r.db.Model(&domain.User{}).
 		Where("tenant_id = ? AND id = ?", tenantID, userID).
 		Update("last_free_gift_date", date).Error
+}
+
+// UpdateLastActive بروزرسانی تاریخ آخرین فعالیت کاربر برای قانون ۱۰ روز خاموشی
+func (r *userRepository) UpdateLastActive(tenantID uint, userID uint) error {
+	return r.db.Model(&domain.User{}).
+		Where("tenant_id = ? AND id = ?", tenantID, userID).
+		Update("last_active_date", time.Now()).Error
 }

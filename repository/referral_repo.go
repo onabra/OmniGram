@@ -95,3 +95,19 @@ func (r *ReferralRepository) GetLeagueRankings(tenantID uint) ([]LeagueRankResul
 		Scan(&results).Error
 	return results, err
 }
+
+// HasEverBeenReferred بررسی اینکه آیا کاربر قبلاً توسط کسی دعوت شده است یا خیر
+func (r *ReferralRepository) HasEverBeenReferred(tenantID uint, referredID uint) bool {
+	var count int64
+	r.db.Model(&domain.Referral{}).
+		Where("tenant_id = ? AND referred_id = ? AND status IN ('PENDING', 'APPROVED', 'ARCHIVED')", tenantID, referredID).
+		Count(&count)
+	return count > 0
+}
+
+// ResetLeagueReferrals آرشیو کردن رفرال‌های فصل قبلی لیگ برای شروع فصل جدید
+func (r *ReferralRepository) ResetLeagueReferrals(tenantID uint) error {
+	return r.db.Model(&domain.Referral{}).
+		Where("tenant_id = ? AND referral_type = ? AND status = ?", tenantID, "league", "APPROVED").
+		Update("status", "ARCHIVED").Error
+}
