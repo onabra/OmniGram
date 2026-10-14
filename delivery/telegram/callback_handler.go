@@ -237,43 +237,72 @@ func (h *PollingHandler) HandleCallback(tenant *domain.Tenant, update tgbotapi.U
 		//		return
 		//	}
 		//
-		//	// کسر از کیف پول و آپدیت دیتابیس
+		//	// ۱. کسر از کیف پول و آپدیت دیتابیس
 		//	user.TomanBalance -= order.TotalAmount
 		//	_ = h.UserRepo.UpdateBalances(tenant.ID, user.ID, user.TomanBalance, user.PointBalance, user.StarsBalance)
 		//
-		//	// آپدیت وضعیت سفارش
+		//	// ۲. آپدیت وضعیت سفارش
 		//	order.PaymentMethod = "WALLET_TOMAN"
 		//	order.PaymentStatus = "PAID"
 		//	order.Status = "COMPLETED" // تغییر وضعیت از DRAFT به تکمیل شده
 		//	_ = h.OrderRepo.UpdateOrder(order)
 		//
-		//	// TODO: ثبت خودکار در بخش تسک (نیازمند فایل task_repo.go)
+		//	// ۳. ثبت خودکار سفارش به عنوان تسک جدید
+		//	newTask := &domain.Task{
+		//		TenantID:      tenant.ID,
+		//		OrderID:       order.ID, // ارتباط با فاکتور اسپانسر
+		//		Title:         "📢 عضویت در کانال اسپانسر",
+		//		TargetLink:    order.TargetLink,
+		//		Capacity:      order.Quantity, // تعداد ممبری که اسپانسر پولش را داده
+		//		TaskType:      "auto_join",
+		//		RewardType:    "point",
+		//		RewardAmount:  10.0, // مقدار پاداش (می‌تواند بعداً از جدول تنظیمات کارفرما خوانده شود)
+		//		StayDuration:  24,   // ۲۴ ساعت ماندگاری اجباری در کانال
+		//		PenaltyAmount: 50.0, // جریمه لفت دادن
+		//		Status:        "ACTIVE",
+		//	}
+		//	_ = h.TaskRepo.CreateTask(newTask)
 		//
-		//	successMsg := fmt.Sprintf("✅ پرداخت %.0f تومان از کیف پول انجام شد.\n\n🔗 لینک شما در سیستم ثبت شد و به زودی وارد بخش وظایف می‌شود.", order.TotalAmount)
+		//	successMsg := fmt.Sprintf("✅ پرداخت %.0f تومان از کیف پول انجام شد.\n\n🔗 لینک شما با موفقیت در سیستم ثبت شد و هم‌اکنون در بخش «وظایف» برای کاربران فعال است.", order.TotalAmount)
 		//	h.SafeBot.SafeEditText(chatID, messageID, successMsg, nil)
 		//
 		//	if h.Logger != nil {
-		//		h.Logger.Info(fmt.Sprintf("Order %d PAID via Toman by User %d", order.ID, user.ID))
+		//		h.Logger.Info(fmt.Sprintf("Order %d PAID via Toman & Task Created for User %d", order.ID, user.ID))
 		//	}
 		//
 		//case "point":
-		//	// توجه: در اینجا فرض شده امتیاز معادل تومان محاسبه می‌شود. در صورت نیاز به ضریب تبدیل، متغیر order.TotalAmount را ضرب/تقسیم کنید.
 		//	if user.PointBalance < order.TotalAmount {
 		//		h.SafeBot.SafeAnswerCallback(callback.ID, "❌ موجودی کیف پول امتیازی شما کافی نیست.", true)
 		//		return
 		//	}
 		//
+		//	// ۱. کسر از کیف پول و آپدیت دیتابیس
 		//	user.PointBalance -= order.TotalAmount
 		//	_ = h.UserRepo.UpdateBalances(tenant.ID, user.ID, user.TomanBalance, user.PointBalance, user.StarsBalance)
 		//
+		//	// ۲. آپدیت وضعیت سفارش
 		//	order.PaymentMethod = "WALLET_POINT"
 		//	order.PaymentStatus = "PAID"
 		//	order.Status = "COMPLETED"
 		//	_ = h.OrderRepo.UpdateOrder(order)
 		//
-		//	// TODO: ثبت خودکار در بخش تسک (نیازمند فایل task_repo.go)
+		//	// ۳. ثبت خودکار سفارش به عنوان تسک جدید
+		//	newTask := &domain.Task{
+		//		TenantID:      tenant.ID,
+		//		OrderID:       order.ID,
+		//		Title:         "📢 عضویت در کانال اسپانسر",
+		//		TargetLink:    order.TargetLink,
+		//		Capacity:      order.Quantity,
+		//		TaskType:      "auto_join",
+		//		RewardType:    "point",
+		//		RewardAmount:  10.0,
+		//		StayDuration:  24,
+		//		PenaltyAmount: 50.0,
+		//		Status:        "ACTIVE",
+		//	}
+		//	_ = h.TaskRepo.CreateTask(newTask)
 		//
-		//	successMsg := fmt.Sprintf("✅ پرداخت %.0f امتیاز از کیف پول انجام شد.\n\n🔗 کانال شما جهت عضوگیری در سیستم ثبت شد.", order.TotalAmount)
+		//	successMsg := fmt.Sprintf("✅ پرداخت %.0f امتیاز از کیف پول انجام شد.\n\n🔗 کانال شما جهت عضوگیری در بخش وظایف ثبت شد.", order.TotalAmount)
 		//	h.SafeBot.SafeEditText(chatID, messageID, successMsg, nil)
 
 		case "toman":
@@ -282,38 +311,35 @@ func (h *PollingHandler) HandleCallback(tenant *domain.Tenant, update tgbotapi.U
 				return
 			}
 
-			// ۱. کسر از کیف پول و آپدیت دیتابیس
 			user.TomanBalance -= order.TotalAmount
 			_ = h.UserRepo.UpdateBalances(tenant.ID, user.ID, user.TomanBalance, user.PointBalance, user.StarsBalance)
 
-			// ۲. آپدیت وضعیت سفارش
 			order.PaymentMethod = "WALLET_TOMAN"
 			order.PaymentStatus = "PAID"
-			order.Status = "COMPLETED" // تغییر وضعیت از DRAFT به تکمیل شده
+			order.Status = "COMPLETED"
 			_ = h.OrderRepo.UpdateOrder(order)
 
-			// ۳. ثبت خودکار سفارش به عنوان تسک جدید
-			newTask := &domain.Task{
-				TenantID:      tenant.ID,
-				OrderID:       order.ID, // ارتباط با فاکتور اسپانسر
-				Title:         "📢 عضویت در کانال اسپانسر",
-				TargetLink:    order.TargetLink,
-				Capacity:      order.Quantity, // تعداد ممبری که اسپانسر پولش را داده
-				TaskType:      "auto_join",
-				RewardType:    "point",
-				RewardAmount:  10.0, // مقدار پاداش (می‌تواند بعداً از جدول تنظیمات کارفرما خوانده شود)
-				StayDuration:  24,   // ۲۴ ساعت ماندگاری اجباری در کانال
-				PenaltyAmount: 50.0, // جریمه لفت دادن
-				Status:        "ACTIVE",
+			var successMsg string
+			if strings.HasPrefix(order.TrackingCode, "SP_") {
+				newTask := &domain.Task{
+					TenantID:      tenant.ID,
+					OrderID:       order.ID,
+					Title:         "📢 عضویت در کانال اسپانسر",
+					TargetLink:    order.TargetLink,
+					Capacity:      order.Quantity,
+					TaskType:      "auto_join",
+					RewardType:    "point",
+					RewardAmount:  10.0,
+					StayDuration:  24,
+					PenaltyAmount: 50.0,
+					Status:        "ACTIVE",
+				}
+				_ = h.TaskRepo.CreateTask(newTask)
+				successMsg = fmt.Sprintf("✅ پرداخت %.0f تومان انجام شد.\n🔖 کد رهگیری: `%s`\n\n🔗 لینک شما در بخش «وظایف» فعال گردید.", order.TotalAmount, order.TrackingCode)
+			} else {
+				successMsg = fmt.Sprintf("✅ سفارش شما با موفقیت ثبت و پرداخت شد!\n\n🔖 کد رهگیری: `%s`\n💰 مبلغ: %.0f تومان", order.TrackingCode, order.TotalAmount)
 			}
-			_ = h.TaskRepo.CreateTask(newTask)
-
-			successMsg := fmt.Sprintf("✅ پرداخت %.0f تومان از کیف پول انجام شد.\n\n🔗 لینک شما با موفقیت در سیستم ثبت شد و هم‌اکنون در بخش «وظایف» برای کاربران فعال است.", order.TotalAmount)
 			h.SafeBot.SafeEditText(chatID, messageID, successMsg, nil)
-
-			if h.Logger != nil {
-				h.Logger.Info(fmt.Sprintf("Order %d PAID via Toman & Task Created for User %d", order.ID, user.ID))
-			}
 
 		case "point":
 			if user.PointBalance < order.TotalAmount {
@@ -321,33 +347,34 @@ func (h *PollingHandler) HandleCallback(tenant *domain.Tenant, update tgbotapi.U
 				return
 			}
 
-			// ۱. کسر از کیف پول و آپدیت دیتابیس
 			user.PointBalance -= order.TotalAmount
 			_ = h.UserRepo.UpdateBalances(tenant.ID, user.ID, user.TomanBalance, user.PointBalance, user.StarsBalance)
 
-			// ۲. آپدیت وضعیت سفارش
 			order.PaymentMethod = "WALLET_POINT"
 			order.PaymentStatus = "PAID"
 			order.Status = "COMPLETED"
 			_ = h.OrderRepo.UpdateOrder(order)
 
-			// ۳. ثبت خودکار سفارش به عنوان تسک جدید
-			newTask := &domain.Task{
-				TenantID:      tenant.ID,
-				OrderID:       order.ID,
-				Title:         "📢 عضویت در کانال اسپانسر",
-				TargetLink:    order.TargetLink,
-				Capacity:      order.Quantity,
-				TaskType:      "auto_join",
-				RewardType:    "point",
-				RewardAmount:  10.0,
-				StayDuration:  24,
-				PenaltyAmount: 50.0,
-				Status:        "ACTIVE",
+			var successMsg string
+			if strings.HasPrefix(order.TrackingCode, "SP_") {
+				newTask := &domain.Task{
+					TenantID:      tenant.ID,
+					OrderID:       order.ID,
+					Title:         "📢 عضویت در کانال اسپانسر",
+					TargetLink:    order.TargetLink,
+					Capacity:      order.Quantity,
+					TaskType:      "auto_join",
+					RewardType:    "point",
+					RewardAmount:  10.0,
+					StayDuration:  24,
+					PenaltyAmount: 50.0,
+					Status:        "ACTIVE",
+				}
+				_ = h.TaskRepo.CreateTask(newTask)
+				successMsg = fmt.Sprintf("✅ پرداخت %.0f امتیاز انجام شد.\n🔖 کد رهگیری: `%s`\n\n🔗 کانال شما در بخش «وظایف» ثبت شد.", order.TotalAmount, order.TrackingCode)
+			} else {
+				successMsg = fmt.Sprintf("✅ سفارش شما با موفقیت ثبت و پرداخت شد!\n\n🔖 کد رهگیری: `%s`", order.TrackingCode)
 			}
-			_ = h.TaskRepo.CreateTask(newTask)
-
-			successMsg := fmt.Sprintf("✅ پرداخت %.0f امتیاز از کیف پول انجام شد.\n\n🔗 کانال شما جهت عضوگیری در بخش وظایف ثبت شد.", order.TotalAmount)
 			h.SafeBot.SafeEditText(chatID, messageID, successMsg, nil)
 
 		case "gate":
@@ -567,62 +594,129 @@ func (h *PollingHandler) HandleCallback(tenant *domain.Tenant, update tgbotapi.U
 			return
 		}
 
+		//if task.TaskType == "manual_proof" {
+		//	_ = h.UserRepo.UpdateUserTaskID(tenant.ID, user.ID, task.ID)
+		//	_ = h.UserRepo.UpdateUserState(tenant.ID, user.ID, domain.StateWaitTask)
+		//
+		//	h.SafeBot.SafeAnswerCallback(callback.ID, "📸 لطفاً عکس (اسکرین‌شات) انجام این تسک را ارسال کنید.", true)
+		//	h.SafeBot.SafeDeleteMessage(chatID, messageID) // پیام دکمه‌ها را پاک می‌کنیم
+		//	msg := tgbotapi.NewMessage(chatID, "📸 لطفاً **اسکرین‌شات** اثبات انجام این تسک را دقیقاً در همینجا ارسال کنید:\n\n*(فقط یک عکس ارسال کنید)*")
+		//	msg.ParseMode = "Markdown"
+		//	_, _ = h.SafeBot.Bot.Send(msg)
+		//	return
+		//}
+
 		if task.TaskType == "manual_proof" {
 			_ = h.UserRepo.UpdateUserTaskID(tenant.ID, user.ID, task.ID)
 			_ = h.UserRepo.UpdateUserState(tenant.ID, user.ID, domain.StateWaitTask)
 
 			h.SafeBot.SafeAnswerCallback(callback.ID, "📸 لطفاً عکس (اسکرین‌شات) انجام این تسک را ارسال کنید.", true)
-			h.SafeBot.SafeDeleteMessage(chatID, messageID) // پیام دکمه‌ها را پاک می‌کنیم
+			h.SafeBot.SafeDeleteMessage(chatID, messageID)
 			msg := tgbotapi.NewMessage(chatID, "📸 لطفاً **اسکرین‌شات** اثبات انجام این تسک را دقیقاً در همینجا ارسال کنید:\n\n*(فقط یک عکس ارسال کنید)*")
 			msg.ParseMode = "Markdown"
 			_, _ = h.SafeBot.Bot.Send(msg)
 			return
 		}
 
-		// تبدیل لینک ذخیره شده به فرمت مناسب API
-		targetChatID, err := ResolveChatID(task.TargetLink)
-		if err != nil {
-			h.SafeBot.SafeAnswerCallback(callback.ID, "❌ ساختار لینک این تسک نامعتبر است.", true)
-			return
-		}
-
-		// تشخیص اینکه آیدی عددی است یا یوزرنیم
-		var chatConfig tgbotapi.ChatConfigWithUser
-		if strings.HasPrefix(targetChatID, "-100") {
-			numericID, _ := strconv.ParseInt(targetChatID, 10, 64)
-			chatConfig = tgbotapi.ChatConfigWithUser{
-				ChatID: numericID,
-				UserID: chatID,
+		if task.TaskType == "reaction" {
+			// محاسبه تأخیر (۲ ثانیه به ازای هر ری‌اکشن؛ تعداد ری‌اکشن در StayDuration ذخیره می‌شود، پیش‌فرض ۱ ری‌اکشن = ۲ ثانیه)
+			reactionCount := task.StayDuration
+			if reactionCount <= 0 {
+				reactionCount = 1
 			}
+			delaySeconds := reactionCount * 2
+			h.SafeBot.SafeAnswerCallback(callback.ID, fmt.Sprintf("⏳ در حال بررسی ثبت ری‌اکشن (%d ثانیه)...", delaySeconds), false)
+			time.Sleep(time.Duration(delaySeconds) * time.Second)
 		} else {
-			chatConfig = tgbotapi.ChatConfigWithUser{
-				SuperGroupUsername: targetChatID,
-				UserID:             chatID,
+			// تسک عضویت در کانال (auto_join)
+			targetChatID, err := ResolveChatID(task.TargetLink)
+			if err != nil {
+				h.SafeBot.SafeAnswerCallback(callback.ID, "❌ ساختار لینک این تسک نامعتبر است.", true)
+				return
+			}
+
+			var chatConfig tgbotapi.ChatConfigWithUser
+			if strings.HasPrefix(targetChatID, "-100") {
+				numericID, _ := strconv.ParseInt(targetChatID, 10, 64)
+				chatConfig = tgbotapi.ChatConfigWithUser{
+					ChatID: numericID,
+					UserID: userID,
+				}
+			} else {
+				chatConfig = tgbotapi.ChatConfigWithUser{
+					SuperGroupUsername: targetChatID,
+					UserID:             userID,
+				}
+			}
+
+			member, err := h.SafeBot.Bot.GetChatMember(tgbotapi.GetChatMemberConfig{
+				ChatConfigWithUser: chatConfig,
+			})
+
+			if err != nil {
+				h.SafeBot.SafeAnswerCallback(callback.ID, "❌ خطا در بررسی عضویت. ربات باید در کانال هدف ادمین باشد.", true)
+				return
+			}
+
+			if member.Status == "left" || member.Status == "kicked" {
+				h.SafeBot.SafeAnswerCallback(callback.ID, "⚠️ شما هنوز در کانال عضو نشده‌اید!", true)
+				return
 			}
 		}
 
-		member, err := h.SafeBot.Bot.GetChatMember(tgbotapi.GetChatMemberConfig{
-			ChatConfigWithUser: chatConfig,
-		})
-
-		if err != nil {
-			h.SafeBot.SafeAnswerCallback(callback.ID, "❌ خطا در بررسی عضویت. ربات باید در کانال هدف ادمین باشد.", true)
-			return
-		}
-
-		if member.Status == "left" || member.Status == "kicked" {
-			h.SafeBot.SafeAnswerCallback(callback.ID, "⚠️ شما هنوز در کانال عضو نشده‌اید!", true)
-			return
-		}
-
-		// کاربر عضو شده است -> ثبت تسک و واریز پاداش
+		// ثبت تسک با حروف بزرگ APPROVED و واریز پاداش
 		submission := &domain.TaskSubmission{
 			TenantID: tenant.ID,
 			UserID:   user.ID,
 			TaskID:   task.ID,
-			Status:   "approved",
+			Status:   "APPROVED",
 		}
 		_ = h.TaskRepo.SubmitTask(submission)
+
+		// تبدیل لینک ذخیره شده به فرمت مناسب API
+		//targetChatID, err := ResolveChatID(task.TargetLink)
+		//if err != nil {
+		//	h.SafeBot.SafeAnswerCallback(callback.ID, "❌ ساختار لینک این تسک نامعتبر است.", true)
+		//	return
+		//}
+		//
+		//// تشخیص اینکه آیدی عددی است یا یوزرنیم
+		//var chatConfig tgbotapi.ChatConfigWithUser
+		//if strings.HasPrefix(targetChatID, "-100") {
+		//	numericID, _ := strconv.ParseInt(targetChatID, 10, 64)
+		//	chatConfig = tgbotapi.ChatConfigWithUser{
+		//		ChatID: numericID,
+		//		UserID: chatID,
+		//	}
+		//} else {
+		//	chatConfig = tgbotapi.ChatConfigWithUser{
+		//		SuperGroupUsername: targetChatID,
+		//		UserID:             chatID,
+		//	}
+		//}
+		//
+		//member, err := h.SafeBot.Bot.GetChatMember(tgbotapi.GetChatMemberConfig{
+		//	ChatConfigWithUser: chatConfig,
+		//})
+		//
+		//if err != nil {
+		//	h.SafeBot.SafeAnswerCallback(callback.ID, "❌ خطا در بررسی عضویت. ربات باید در کانال هدف ادمین باشد.", true)
+		//	return
+		//}
+		//
+		//if member.Status == "left" || member.Status == "kicked" {
+		//	h.SafeBot.SafeAnswerCallback(callback.ID, "⚠️ شما هنوز در کانال عضو نشده‌اید!", true)
+		//	return
+		//}
+
+		// کاربر عضو شده است -> ثبت تسک و واریز پاداش
+		//submission := &domain.TaskSubmission{
+		//	TenantID: tenant.ID,
+		//	UserID:   user.ID,
+		//	TaskID:   task.ID,
+		//	Status:   "approved",
+		//}
+		//_ = h.TaskRepo.SubmitTask(submission)
 
 		// کسر از ظرفیت تسکِ اسپانسر
 		_ = h.TaskRepo.DecreaseCapacity(tenant.ID, task.ID)
@@ -1063,8 +1157,39 @@ func (h *PollingHandler) HandleCallback(tenant *domain.Tenant, update tgbotapi.U
 
 			userUser, _ := h.UserRepo.GetUserByID(tenant.ID, receipt.UserID)
 
+			//if receiptAction == "approve" {
+			//	// تأیید فیش و قطعی کردن سفارش
+			//	receipt.Status = "APPROVED"
+			//	_ = h.ReceiptRepo.UpdateStatus(receipt)
+			//
+			//	order.PaymentMethod = "CARD"
+			//	order.PaymentStatus = "PAID"
+			//	order.Status = "COMPLETED"
+			//	_ = h.OrderRepo.UpdateOrder(order)
+			//
+			//	// ثبت خودکار سفارش اسپانسر به عنوان تسک جدید
+			//	newTask := &domain.Task{
+			//		TenantID:      tenant.ID,
+			//		OrderID:       order.ID,
+			//		Title:         "📢 عضویت در کانال اسپانسر",
+			//		TargetLink:    order.TargetLink,
+			//		Capacity:      order.Quantity,
+			//		TaskType:      "auto_join",
+			//		RewardType:    "point",
+			//		RewardAmount:  10.0,
+			//		StayDuration:  24,
+			//		PenaltyAmount: 50.0,
+			//		Status:        "ACTIVE",
+			//	}
+			//	_ = h.TaskRepo.CreateTask(newTask)
+			//
+			//	h.SafeBot.SafeAnswerCallback(callback.ID, "✅ فیش تأیید و تسک ساخته شد.", false)
+			//	h.SafeBot.SafeEditText(chatID, messageID, "✅ این فیش توسط ادمین تأیید و به تسک تبدیل شد.", nil)
+			//	if userUser != nil {
+			//		_ = h.SafeBot.SendMessage(userUser.TelegramID, fmt.Sprintf("✅ فیش واریزی شما مبلغ %.0f تومان تأیید شد و سفارش شما فعال گردید.", receipt.Amount))
+			//	}
+
 			if receiptAction == "approve" {
-				// تأیید فیش و قطعی کردن سفارش
 				receipt.Status = "APPROVED"
 				_ = h.ReceiptRepo.UpdateStatus(receipt)
 
@@ -1073,26 +1198,27 @@ func (h *PollingHandler) HandleCallback(tenant *domain.Tenant, update tgbotapi.U
 				order.Status = "COMPLETED"
 				_ = h.OrderRepo.UpdateOrder(order)
 
-				// ثبت خودکار سفارش اسپانسر به عنوان تسک جدید
-				newTask := &domain.Task{
-					TenantID:      tenant.ID,
-					OrderID:       order.ID,
-					Title:         "📢 عضویت در کانال اسپانسر",
-					TargetLink:    order.TargetLink,
-					Capacity:      order.Quantity,
-					TaskType:      "auto_join",
-					RewardType:    "point",
-					RewardAmount:  10.0,
-					StayDuration:  24,
-					PenaltyAmount: 50.0,
-					Status:        "ACTIVE",
+				if strings.HasPrefix(order.TrackingCode, "SP_") {
+					newTask := &domain.Task{
+						TenantID:      tenant.ID,
+						OrderID:       order.ID,
+						Title:         "📢 عضویت در کانال اسپانسر",
+						TargetLink:    order.TargetLink,
+						Capacity:      order.Quantity,
+						TaskType:      "auto_join",
+						RewardType:    "point",
+						RewardAmount:  10.0,
+						StayDuration:  24,
+						PenaltyAmount: 50.0,
+						Status:        "ACTIVE",
+					}
+					_ = h.TaskRepo.CreateTask(newTask)
 				}
-				_ = h.TaskRepo.CreateTask(newTask)
 
-				h.SafeBot.SafeAnswerCallback(callback.ID, "✅ فیش تأیید و تسک ساخته شد.", false)
-				h.SafeBot.SafeEditText(chatID, messageID, "✅ این فیش توسط ادمین تأیید و به تسک تبدیل شد.", nil)
+				h.SafeBot.SafeAnswerCallback(callback.ID, "✅ فیش تأیید شد.", false)
+				h.SafeBot.SafeEditText(chatID, messageID, fmt.Sprintf("✅ این فیش توسط ادمین تأیید شد (سفارش `%s`).", order.TrackingCode), nil)
 				if userUser != nil {
-					_ = h.SafeBot.SendMessage(userUser.TelegramID, fmt.Sprintf("✅ فیش واریزی شما مبلغ %.0f تومان تأیید شد و سفارش شما فعال گردید.", receipt.Amount))
+					_ = h.SafeBot.SendMessage(userUser.TelegramID, fmt.Sprintf("✅ فیش واریزی شما به مبلغ %.0f تومان تأیید شد و سفارش `%s` فعال گردید.", receipt.Amount, order.TrackingCode))
 				}
 
 			} else if receiptAction == "reject" {
@@ -1301,11 +1427,27 @@ func (h *PollingHandler) HandleCallback(tenant *domain.Tenant, update tgbotapi.U
 			}
 			return
 
+		//case action == "tasks":
+		//	if isSuper || isAdmin {
+		//		tasks, _ := h.TaskRepo.GetAllTasks(tenant.ID)
+		//		markup := h.KeyboardBuilder.BuildAdminTasksListMenu(tasks)
+		//		h.SafeBot.SafeEditText(chatID, messageID, "📝 *مدیریت تسک‌ها و اسپانسرها*\n\nبرای تغییر ظرفیت، تعیین جریمه یا متوقف کردن هر تسک روی آن کلیک کنید:", &markup)
+		//	}
+		//	return
+
 		case action == "tasks":
 			if isSuper || isAdmin {
 				tasks, _ := h.TaskRepo.GetAllTasks(tenant.ID)
 				markup := h.KeyboardBuilder.BuildAdminTasksListMenu(tasks)
-				h.SafeBot.SafeEditText(chatID, messageID, "📝 *مدیریت تسک‌ها و اسپانسرها*\n\nبرای تغییر ظرفیت، تعیین جریمه یا متوقف کردن هر تسک روی آن کلیک کنید:", &markup)
+				h.SafeBot.SafeEditText(chatID, messageID, "📝 *مدیریت تسک‌ها*\n\nبرای ویرایش هر تسک روی آن کلیک کنید یا تسک جدید بسازید:", &markup)
+			}
+			return
+
+		case action == "sponsors":
+			if isSuper || isAdmin {
+				tasks, _ := h.TaskRepo.GetSponsorTasks(tenant.ID)
+				markup := h.KeyboardBuilder.BuildAdminTasksListMenu(tasks)
+				h.SafeBot.SafeEditText(chatID, messageID, "📢 *مدیریت تسک‌های اسپانسرها*\n\nلیست کانال‌های ثبت شده توسط اسپانسرها:", &markup)
 			}
 			return
 
@@ -1432,23 +1574,60 @@ func (h *PollingHandler) HandleCallback(tenant *domain.Tenant, update tgbotapi.U
 	}
 
 	// مدیریت تسک‌ها (ادمین)
+	//if strings.HasPrefix(data, "admtask_") {
+	//	if !botHandlerTemp.IsSuperAdmin(chatID) && !botHandlerTemp.IsAdmin(chatID) {
+	//		return
+	//	}
+	//	parts := strings.Split(data, "_")
+	//	if len(parts) < 3 {
+	//		return
+	//	}
+	//	action := parts[1] // edit, cap, pen, toggle
+	//	taskID, _ := strconv.Atoi(parts[2])
+	//
+	//	task, err := h.TaskRepo.GetTaskByID(tenant.ID, uint(taskID))
+	//	if err != nil {
+	//		return
+	//	}
+	//	user, _ := h.UserRepo.GetUserByTelegramID(tenant.ID, chatID)
+
+	// مدیریت تسک‌ها (ادمین)
 	if strings.HasPrefix(data, "admtask_") {
-		if !botHandlerTemp.IsSuperAdmin(chatID) && !botHandlerTemp.IsAdmin(chatID) {
+		if !botHandlerTemp.IsSuperAdmin(userID) && !botHandlerTemp.IsAdmin(userID) {
 			return
 		}
 		parts := strings.Split(data, "_")
 		if len(parts) < 3 {
 			return
 		}
-		action := parts[1] // edit, cap, pen, toggle
-		taskID, _ := strconv.Atoi(parts[2])
+		action := parts[1] // add, edit, cap, pen, toggle
+		user, _ := h.UserRepo.GetUserByTelegramID(tenant.ID, userID)
 
+		if action == "add" {
+			_ = h.UserRepo.UpdateUserState(tenant.ID, user.ID, domain.StateAdminWaitNewTaskData)
+			h.SafeBot.SafeAnswerCallback(callback.ID, "فرم ثبت تسک جدید", false)
+			guideMsg := "➕ *افزودن تسک جدید*\n\n" +
+				"لطفاً اطلاعات تسک را در یک خط و با جداکننده `|` به فرمت زیر ارسال کنید:\n\n" +
+				"`عنوان | لینک هدف | نوع | ظرفیت | پاداش | جریمه`\n\n" +
+				"📌 *انواع مجاز:*\n" +
+				"• `auto_join` (عضویت کانال با بررسی خودکار)\n" +
+				"• `manual_proof` (تسک دستی با ارسال اسکرین‌شات)\n" +
+				"• `reaction` (تسک ری‌اکشن با تأخیر هوشمند)\n\n" +
+				"💡 *مثال تسک عضویت:*\n" +
+				"`عضویت در کانال حامی | @mychannel | auto_join | 500 | 10 | 20`\n\n" +
+				"💡 *مثال تسک اسکرین‌شات:*\n" +
+				"`ثبت نام در سایت | https://example.com | manual_proof | 100 | 50 | 0`"
+			msg := tgbotapi.NewMessage(chatID, guideMsg)
+			msg.ParseMode = "Markdown"
+			_, _ = h.SafeBot.Bot.Send(msg)
+			return
+		}
+
+		taskID, _ := strconv.Atoi(parts[2])
 		task, err := h.TaskRepo.GetTaskByID(tenant.ID, uint(taskID))
 		if err != nil {
 			return
 		}
-		user, _ := h.UserRepo.GetUserByTelegramID(tenant.ID, chatID)
-
 		switch action {
 		case "edit":
 			markup := h.KeyboardBuilder.BuildAdminTaskEditMenu(task.ID, task.Status)

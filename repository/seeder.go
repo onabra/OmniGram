@@ -48,4 +48,17 @@ func RunSeeder(db *gorm.DB, masterBotToken string) {
 		db.Create(&defaultTranslations)
 		log.Println("✅ داده‌های اولیه (دکمه‌ها و متون) در جدول Translations ثبت شد.")
 	}
+
+	// ۳. ثبت سرویس‌های پایه اسپانسرینگ (برای کار کردن دکمه‌های کیفیت اسپانسر)
+	var sponsorSrvCount int64
+	db.Model(&domain.ServiceItem{}).Where("tenant_id = ? AND name_key IN ?", tenantID, []string{"quality_shop", "quality_normal", "quality_eco"}).Count(&sponsorSrvCount)
+	if sponsorSrvCount == 0 {
+		sponsorServices := []domain.ServiceItem{
+			{TenantID: tenantID, Title: "ممبر اسپانسر کیفیت بالا (شاپ)", NameKey: "quality_shop", PriceToman: 1500, PriceUSD: 0.025, ProfitPercent: 20},
+			{TenantID: tenantID, Title: "ممبر اسپانسر کیفیت متوسط", NameKey: "quality_normal", PriceToman: 1000, PriceUSD: 0.016, ProfitPercent: 20},
+			{TenantID: tenantID, Title: "ممبر اسپانسر کیفیت اقتصادی", NameKey: "quality_eco", PriceToman: 600, PriceUSD: 0.010, ProfitPercent: 20},
+		}
+		db.Create(&sponsorServices)
+		log.Println("✅ سرویس‌های پایه اسپانسرینگ در جدول ServiceItems ثبت شد.")
+	}
 }

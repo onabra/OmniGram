@@ -801,6 +801,62 @@ func (h *BotHandler) HandleMessage(tenant *domain.Tenant, chatID int64, text str
 		}
 	}
 
+	if currentUser.State == domain.StateAdminWaitNewTaskData {
+		if text == backMainBtnText {
+			_ = h.UserRepo.UpdateUserState(tenant.ID, currentUser.ID, domain.StateNormal)
+		} else {
+			parts := strings.Split(text, "|")
+			if len(parts) < 6 {
+				_ = h.SafeBot.SendMessage(chatID, "❌ فرمت ارسالی ناقص است. لطفاً هر ۶ بخش را با علامت `|` از هم جدا کنید.")
+				return
+			}
+
+			title := strings.TrimSpace(parts[0])
+			targetLink := strings.TrimSpace(parts[1])
+			taskType := strings.TrimSpace(parts[2])
+			capacity, errCap := strconv.Atoi(strings.TrimSpace(parts[3]))
+			reward, errRew := strconv.ParseFloat(strings.TrimSpace(parts[4]), 64)
+			penalty, errPen := strconv.ParseFloat(strings.TrimSpace(parts[5]), 64)
+
+			if errCap != nil || errRew != nil || errPen != nil || capacity <= 0 {
+				_ = h.SafeBot.SendMessage(chatID, "❌ مقادیر ظرفیت، پاداش و جریمه باید عدد معتبر باشند.")
+				return
+			}
+
+			if taskType != "auto_join" && taskType != "manual_proof" && taskType != "reaction" {
+				_ = h.SafeBot.SendMessage(chatID, "❌ نوع تسک باید یکی از مقادیر `auto_join`، `manual_proof` یا `reaction` باشد.")
+				return
+			}
+
+			if taskType == "auto_join" {
+				resolved, err := ResolveChatID(targetLink)
+				if err != nil {
+					_ = h.SafeBot.SendMessage(chatID, "❌ برای تسک `auto_join`، لینک هدف باید یوزرنیم کانال (@...)، لینک عمومی یا آیدی عددی (-100...) معتبر باشد.")
+					return
+				}
+				targetLink = resolved
+			}
+
+			newTask := &domain.Task{
+				TenantID:      tenant.ID,
+				Title:         title,
+				TargetLink:    targetLink,
+				TaskType:      taskType,
+				Capacity:      capacity,
+				RewardType:    "point",
+				RewardAmount:  reward,
+				StayDuration:  24,
+				PenaltyAmount: penalty,
+				Status:        "ACTIVE",
+			}
+			_ = h.TaskRepo.CreateTask(newTask)
+
+			_ = h.SafeBot.SendMessage(chatID, fmt.Sprintf("✅ تسک «%s» با ظرفیت %d و پاداش %.0f امتیاز با موفقیت ایجاد و فعال شد.", title, capacity, reward))
+			_ = h.UserRepo.UpdateUserState(tenant.ID, currentUser.ID, domain.StateNormal)
+			return
+		}
+	}
+
 	switch text {
 
 	case btnConvert:

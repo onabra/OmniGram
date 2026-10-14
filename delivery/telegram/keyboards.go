@@ -286,7 +286,7 @@ func (kb *KeyboardBuilder) BuildOrderTicketMenu(orderID uint) tgbotapi.InlineKey
 	)
 }
 
-// BuildTaskActionMenu دکمه‌های شیشه‌ای برای انجام وظیفه (عضویت و بررسی یا ارسال اسکرین‌شات)
+// BuildTaskActionMenu دکمه‌های شیشه‌ای برای انجام وظیفه (عضویت، ری‌اکشن یا ارسال اسکرین‌شات)
 func (kb *KeyboardBuilder) BuildTaskActionMenu(taskID uint, targetLink string, taskType string) tgbotapi.InlineKeyboardMarkup {
 	idStr := fmt.Sprintf("%d", taskID)
 
@@ -294,15 +294,19 @@ func (kb *KeyboardBuilder) BuildTaskActionMenu(taskID uint, targetLink string, t
 	var btnURL string
 	if strings.HasPrefix(targetLink, "@") {
 		btnURL = "https://t.me/" + strings.TrimPrefix(targetLink, "@")
-	} else if strings.HasPrefix(targetLink, "-100") {
-		btnURL = "https://t.me"
-	} else {
+	} else if strings.HasPrefix(targetLink, "http://") || strings.HasPrefix(targetLink, "https://") {
 		btnURL = targetLink
+	} else if strings.Contains(targetLink, "t.me/") {
+		btnURL = "https://" + strings.TrimPrefix(targetLink, "https://")
+	} else {
+		btnURL = "https://t.me"
 	}
 
 	verifyBtnText := "✅ بررسی عضویت و دریافت پاداش"
 	if taskType == "manual_proof" {
 		verifyBtnText = "📸 ارسال اسکرین‌شات (اثبات انجام)"
+	} else if taskType == "reaction" {
+		verifyBtnText = "👍 ثبت ری‌اکشن و دریافت پاداش"
 	}
 
 	return tgbotapi.NewInlineKeyboardMarkup(
@@ -314,6 +318,35 @@ func (kb *KeyboardBuilder) BuildTaskActionMenu(taskID uint, targetLink string, t
 		),
 	)
 }
+
+//// BuildTaskActionMenu دکمه‌های شیشه‌ای برای انجام وظیفه (عضویت و بررسی یا ارسال اسکرین‌شات)
+//func (kb *KeyboardBuilder) BuildTaskActionMenu(taskID uint, targetLink string, taskType string) tgbotapi.InlineKeyboardMarkup {
+//	idStr := fmt.Sprintf("%d", taskID)
+//
+//	// تبدیل یوزرنیم به لینک برای دکمه شیشه‌ای
+//	var btnURL string
+//	if strings.HasPrefix(targetLink, "@") {
+//		btnURL = "https://t.me/" + strings.TrimPrefix(targetLink, "@")
+//	} else if strings.HasPrefix(targetLink, "-100") {
+//		btnURL = "https://t.me"
+//	} else {
+//		btnURL = targetLink
+//	}
+//
+//	verifyBtnText := "✅ بررسی عضویت و دریافت پاداش"
+//	if taskType == "manual_proof" {
+//		verifyBtnText = "📸 ارسال اسکرین‌شات (اثبات انجام)"
+//	}
+//
+//	return tgbotapi.NewInlineKeyboardMarkup(
+//		tgbotapi.NewInlineKeyboardRow(
+//			tgbotapi.NewInlineKeyboardButtonURL("🔗 ورود به لینک / کانال", btnURL),
+//		),
+//		tgbotapi.NewInlineKeyboardRow(
+//			tgbotapi.NewInlineKeyboardButtonData(verifyBtnText, "verify_task_"+idStr),
+//		),
+//	)
+//}
 
 // BuildGameJoinMenu دکمه شیشه‌ای برای پیوستن به میز بازی و لغو توسط سازنده
 func (kb *KeyboardBuilder) BuildGameJoinMenu(gameID uint, amount float64) tgbotapi.InlineKeyboardMarkup {
@@ -575,7 +608,23 @@ func (kb *KeyboardBuilder) BuildAdminForceJoinListMenu(channels []domain.ForceJo
 	return tgbotapi.NewInlineKeyboardMarkup(rows...)
 }
 
-// BuildAdminTasksListMenu لیست تسک‌ها و اسپانسرها برای ادمین
+//// BuildAdminTasksListMenu لیست تسک‌ها و اسپانسرها برای ادمین
+//func (kb *KeyboardBuilder) BuildAdminTasksListMenu(tasks []domain.Task) tgbotapi.InlineKeyboardMarkup {
+//	var rows [][]tgbotapi.InlineKeyboardButton
+//	for _, t := range tasks {
+//		statusIcon := "🟢"
+//		if t.Status != "ACTIVE" {
+//			statusIcon = "🔴"
+//		}
+//		btnText := fmt.Sprintf("%s %s (ظرفیت: %d)", statusIcon, t.Title, t.Capacity)
+//		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+//			tgbotapi.NewInlineKeyboardButtonData(btnText, fmt.Sprintf("admtask_edit_%d", t.ID)),
+//		))
+//	}
+//	return tgbotapi.NewInlineKeyboardMarkup(rows...)
+//}
+
+// BuildAdminTasksListMenu لیست تسک‌ها و اسپانسرها برای ادمین به همراه دکمه ساخت تسک جدید
 func (kb *KeyboardBuilder) BuildAdminTasksListMenu(tasks []domain.Task) tgbotapi.InlineKeyboardMarkup {
 	var rows [][]tgbotapi.InlineKeyboardButton
 	for _, t := range tasks {
@@ -588,6 +637,9 @@ func (kb *KeyboardBuilder) BuildAdminTasksListMenu(tasks []domain.Task) tgbotapi
 			tgbotapi.NewInlineKeyboardButtonData(btnText, fmt.Sprintf("admtask_edit_%d", t.ID)),
 		))
 	}
+	rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+		tgbotapi.NewInlineKeyboardButtonData("➕ افزودن تسک جدید", "admtask_add_0"),
+	))
 	return tgbotapi.NewInlineKeyboardMarkup(rows...)
 }
 

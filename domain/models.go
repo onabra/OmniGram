@@ -53,6 +53,7 @@ const (
 
 	StateAdminWaitOrderSearch UserState = "ADMIN_WAIT_ORDER_SEARCH" // ادمین در انتظار ارسال کد رهگیری سفارش
 
+	StateAdminWaitNewTaskData UserState = "ADMIN_WAIT_NEW_TASK_DATA" // ادمین در انتظار ارسال اطلاعات تسک جدید
 )
 
 // Tenant (موجودیت اصلی برای معماری SaaS)
@@ -173,12 +174,13 @@ type Task struct {
 }
 
 type TaskSubmission struct {
-	ID       uint
-	TenantID uint
-	UserID   uint
-	TaskID   uint
-	Status   string // "pending", "approved", "rejected"
-	FileID   string // آیدی عکس اسکرین شات ارسالی
+	ID        uint
+	TenantID  uint
+	UserID    uint
+	TaskID    uint
+	Status    string    // "pending", "approved", "rejected"
+	FileID    string    // آیدی عکس اسکرین شات ارسالی
+	CreatedAt time.Time // زمان انجام تسک برای بررسی شرط ماندگاری (StayDuration)
 }
 
 type GameSession struct {

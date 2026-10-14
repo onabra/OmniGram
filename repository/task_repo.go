@@ -45,10 +45,59 @@ func (r *TaskRepository) GetTaskByID(tenantID uint, taskID uint) (*domain.Task, 
 	return &task, nil
 }
 
-// HasUserCompletedTask بررسی اینکه آیا کاربر قبلاً این تسک را انجام داده یا خیر (ضد پاداش تکراری)
+//// HasUserCompletedTask بررسی اینکه آیا کاربر قبلاً این تسک را انجام داده یا خیر (ضد پاداش تکراری)
+//func (r *TaskRepository) HasUserCompletedTask(tenantID uint, userID uint, taskID uint) bool {
+//	var count int64
+//	r.DB.Model(&domain.TaskSubmission{}).Where("tenant_id = ? AND user_id = ? AND task_id = ?", tenantID, userID, taskID).Count(&count)
+//	return count > 0
+//}
+
+//// SubmitTask ثبت موفقیت‌آمیز انجام تسک توسط کاربر
+//func (r *TaskRepository) SubmitTask(submission *domain.TaskSubmission) error {
+//	return r.DB.Create(submission).Error
+//}
+
+// [repository/task_repo.go]
+
+//// GetSubmissionByID دریافت اطلاعات یک سابمیشن (اثبات تسک)
+//func (r *TaskRepository) GetSubmissionByID(tenantID uint, subID uint) (*domain.TaskSubmission, error) {
+//	var sub domain.TaskSubmission
+//	err := r.DB.Where("tenant_id = ? AND id = ?", tenantID, subID).First(&sub).Error
+//	return &sub, err
+//}
+
+//// UpdateSubmissionStatus آپدیت وضعیت اسکرین‌شات ارسالی کاربر
+//func (r *TaskRepository) UpdateSubmissionStatus(sub *domain.TaskSubmission) error {
+//	return r.DB.Model(sub).Update("status", sub.Status).Error
+//}
+
+//// GetUserApprovedTaskCount دریافت تعداد تسک‌های تایید شده یک کاربر (برای شرط برداشت)
+//func (r *TaskRepository) GetUserApprovedTaskCount(tenantID uint, userID uint) int64 {
+//	var count int64
+//	r.DB.Model(&domain.TaskSubmission{}).
+//		Where("tenant_id = ? AND user_id = ? AND status = ?", tenantID, userID, "APPROVED").
+//		Count(&count)
+//	return count
+//}
+
+//// GetAllTasks واکشی تمام تسک‌ها برای پنل ادمین
+//func (r *TaskRepository) GetAllTasks(tenantID uint) ([]domain.Task, error) {
+//	var tasks []domain.Task
+//	err := r.DB.Where("tenant_id = ?", tenantID).Order("id desc").Find(&tasks).Error
+//	return tasks, err
+//}
+//
+//// UpdateTask بروزرسانی اطلاعات یک تسک (مثل تغییر جریمه یا ظرفیت)
+//func (r *TaskRepository) UpdateTask(task *domain.Task) error {
+//	return r.DB.Save(task).Error
+//}
+
+// HasUserCompletedTask بررسی اینکه آیا کاربر قبلاً این تسک را انجام داده یا در انتظار تایید است
 func (r *TaskRepository) HasUserCompletedTask(tenantID uint, userID uint, taskID uint) bool {
 	var count int64
-	r.DB.Model(&domain.TaskSubmission{}).Where("tenant_id = ? AND user_id = ? AND task_id = ?", tenantID, userID, taskID).Count(&count)
+	r.DB.Model(&domain.TaskSubmission{}).
+		Where("tenant_id = ? AND user_id = ? AND task_id = ? AND status IN ('APPROVED', 'PENDING', 'approved', 'pending')", tenantID, userID, taskID).
+		Count(&count)
 	return count > 0
 }
 
@@ -57,13 +106,14 @@ func (r *TaskRepository) SubmitTask(submission *domain.TaskSubmission) error {
 	return r.DB.Create(submission).Error
 }
 
-// [repository/task_repo.go]
-
 // GetSubmissionByID دریافت اطلاعات یک سابمیشن (اثبات تسک)
 func (r *TaskRepository) GetSubmissionByID(tenantID uint, subID uint) (*domain.TaskSubmission, error) {
 	var sub domain.TaskSubmission
 	err := r.DB.Where("tenant_id = ? AND id = ?", tenantID, subID).First(&sub).Error
-	return &sub, err
+	if err != nil {
+		return nil, err
+	}
+	return &sub, nil
 }
 
 // UpdateSubmissionStatus آپدیت وضعیت اسکرین‌شات ارسالی کاربر
@@ -75,7 +125,7 @@ func (r *TaskRepository) UpdateSubmissionStatus(sub *domain.TaskSubmission) erro
 func (r *TaskRepository) GetUserApprovedTaskCount(tenantID uint, userID uint) int64 {
 	var count int64
 	r.DB.Model(&domain.TaskSubmission{}).
-		Where("tenant_id = ? AND user_id = ? AND status = ?", tenantID, userID, "APPROVED").
+		Where("tenant_id = ? AND user_id = ? AND status IN ('APPROVED', 'approved')", tenantID, userID).
 		Count(&count)
 	return count
 }
@@ -85,6 +135,29 @@ func (r *TaskRepository) GetAllTasks(tenantID uint) ([]domain.Task, error) {
 	var tasks []domain.Task
 	err := r.DB.Where("tenant_id = ?", tenantID).Order("id desc").Find(&tasks).Error
 	return tasks, err
+}
+
+// GetSponsorTasks واکشی فقط تسک‌های ثبت شده توسط اسپانسرها
+func (r *TaskRepository) GetSponsorTasks(tenantID uint) ([]domain.Task, error) {
+	var tasks []domain.Task
+	err := r.DB.Where("tenant_id = ? AND order_id > 0", tenantID).Order("id desc").Find(&tasks).Error
+	return tasks, err
+}
+
+// GetApprovedSubmissionByChannel پیدا کردن تسک تایید شده کاربر برای کانالی که از آن لفت داده است
+func (r *TaskRepository) GetApprovedSubmissionByChannel(tenantID uint, userID uint, targetIdentifiers []string) (*domain.TaskSubmission, *domain.Task, error) {
+	var task domain.Task
+	err := r.DB.Where("tenant_id = ? AND target_link IN ?", tenantID, targetIdentifiers).First(&task).Error
+	if err != nil {
+		return nil, nil, err
+	}
+
+	var sub domain.TaskSubmission
+	err = r.DB.Where("tenant_id = ? AND user_id = ? AND task_id = ? AND status IN ('APPROVED', 'approved')", tenantID, userID, task.ID).First(&sub).Error
+	if err != nil {
+		return nil, nil, err
+	}
+	return &sub, &task, nil
 }
 
 // UpdateTask بروزرسانی اطلاعات یک تسک (مثل تغییر جریمه یا ظرفیت)
