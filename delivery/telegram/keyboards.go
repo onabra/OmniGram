@@ -514,14 +514,32 @@ func (kb *KeyboardBuilder) BuildWithdrawStarsMenu() tgbotapi.InlineKeyboardMarku
 	return tgbotapi.NewInlineKeyboardMarkup(rows...)
 }
 
-// BuildWithdrawGiftMenu انتخاب نوع گیفت
-func (kb *KeyboardBuilder) BuildWithdrawGiftMenu() tgbotapi.InlineKeyboardMarkup {
-	return tgbotapi.NewInlineKeyboardMarkup(
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("🧸 گیفت تدی (۳۰ امتیاز)", "withdraw_do_GIFT_30"),
-			tgbotapi.NewInlineKeyboardButtonData("❤️ گیفت قلب (۵۰ امتیاز)", "withdraw_do_GIFT_50"),
-		),
-	)
+// BuildWithdrawGiftMenu ساخت منوی داینامیک انتخاب گیفت بر اساس دیتابیس
+func (kb *KeyboardBuilder) BuildWithdrawGiftMenu(gifts []domain.GiftItem) tgbotapi.InlineKeyboardMarkup {
+	var rows [][]tgbotapi.InlineKeyboardButton
+	for _, g := range gifts {
+		btnText := fmt.Sprintf("%s (%.0f امتیاز)", g.Title, g.CostPoints)
+		btnData := fmt.Sprintf("withdraw_gift_%d", g.ID)
+		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData(btnText, btnData),
+		))
+	}
+	return tgbotapi.NewInlineKeyboardMarkup(rows...)
+}
+
+// BuildAdminGiftsListMenu منوی مدیریت گیفت‌ها در پنل ادمین
+func (kb *KeyboardBuilder) BuildAdminGiftsListMenu(gifts []domain.GiftItem) tgbotapi.InlineKeyboardMarkup {
+	var rows [][]tgbotapi.InlineKeyboardButton
+	for _, g := range gifts {
+		btnText := fmt.Sprintf("❌ حذف %s (%.0f امتیاز)", g.Title, g.CostPoints)
+		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData(btnText, fmt.Sprintf("admgift_del_%d", g.ID)),
+		))
+	}
+	rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+		tgbotapi.NewInlineKeyboardButtonData("➕ افزودن گیفت جدید", "admgift_add"),
+	))
+	return tgbotapi.NewInlineKeyboardMarkup(rows...)
 }
 
 // BuildAdminWithdrawMenu دکمه‌های تأیید برداشت برای ادمین

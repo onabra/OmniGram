@@ -26,38 +26,30 @@ const (
 	StateWaitPaymentReceipt   UserState = "WAIT_PAYMENT_RECEIPT"    // در انتظار ارسال عکس فیش واریزی
 
 	// Shop States
-	StateWaitServiceLink  UserState = "WAIT_SERVICE_LINK"  // انتظار لینک برای انجام سفارش فروشگاه
-	StateWaitServiceCount UserState = "WAIT_SERVICE_COUNT" // انتظار تعداد سفارش فروشگاه
+	StateWaitServiceLink          UserState = "WAIT_SERVICE_LINK"         // انتظار لینک برای انجام سفارش فروشگاه
+	StateWaitServiceCount         UserState = "WAIT_SERVICE_COUNT"        // انتظار تعداد سفارش فروشگاه
+	StateWaitTrackingCode         UserState = "WAIT_TRACKING_CODE"        // در انتظار کد رهگیری سفارش
+	StateWaitNewOrderLink         UserState = "WAIT_NEW_ORDER_LINK"       // در انتظار لینک جدید برای ویرایش سفارش
+	StateAdminWaitUserID          UserState = "ADMIN_WAIT_USER_ID"        // ادمین در انتظار ارسال آیدی عددی کاربر
+	StateAdminWaitBalanceAmount   UserState = "ADMIN_WAIT_BALANCE_AMOUNT" // ادمین در انتظار ارسال مبلغ برای شارژ/کسر
+	StateAdminWaitSettingValue    UserState = "ADMIN_WAIT_SETTING_VALUE"  // ادمین در انتظار ارسال مقدار جدید برای تنظیمات
+	StateAdminWaitCategoryName    UserState = "ADMIN_WAIT_CAT_NAME"       // انتظار نام دسته‌بندی
+	StateAdminWaitServiceName     UserState = "ADMIN_WAIT_SRV_NAME"       // انتظار نام سرویس
+	StateAdminWaitServicePriceUSD UserState = "ADMIN_WAIT_SRV_PRICE_USD"  // انتظار قیمت دلاری سرویس
+	StateAdminWaitDollarPrice     UserState = "ADMIN_WAIT_DOLLAR_PRICE"   // انتظار قیمت روز دلار
+	StateAdminWaitForceJoinData   UserState = "ADMIN_WAIT_FORCEJOIN_DATA" // انتظار لینک و آیدی کانال اجباری
+	StateAdminWaitTaskPenalty     UserState = "ADMIN_WAIT_TASK_PENALTY"   // انتظار مبلغ جریمه تسک
+	StateAdminWaitTaskCapacity    UserState = "ADMIN_WAIT_TASK_CAPACITY"  // انتظار ظرفیت جدید تسک
+	StateAdminWaitTicketReply     UserState = "ADMIN_WAIT_TICKET_REPLY"   // انتظار پاسخ ادمین به تیکت کاربر
+	StateAdminWaitBroadcastMsg    UserState = "ADMIN_WAIT_BROADCAST_MSG"  // انتظار ارسال پیام یا فوروارد برای ارسال همگانی
+	StateWaitConvertAmountStars   UserState = "WAIT_CONVERT_AMOUNT_STARS" // انتظار مقدار استارز برای تبدیل
+	StateWaitConvertAmountToman   UserState = "WAIT_CONVERT_AMOUNT_TOMAN" // انتظار مقدار امتیاز برای تبدیل به تومان
+	StateAdminWaitOrderSearch     UserState = "ADMIN_WAIT_ORDER_SEARCH"   // ادمین در انتظار ارسال کد رهگیری سفارش
+	StateAdminWaitNewTaskData     UserState = "ADMIN_WAIT_NEW_TASK_DATA"  // ادمین در انتظار ارسال اطلاعات تسک جدید
+	StateAdminWaitNewDrawData     UserState = "ADMIN_WAIT_NEW_DRAW_DATA"  // ادمین در انتظار ارسال اطلاعات قرعه‌کشی جدید
+	StateAdminWaitLeagueRules     UserState = "ADMIN_WAIT_LEAGUE_RULES"   // ادمین در انتظار ارسال متن قوانین لیگ
 
-	StateWaitTrackingCode UserState = "WAIT_TRACKING_CODE"  // در انتظار کد رهگیری سفارش
-	StateWaitNewOrderLink UserState = "WAIT_NEW_ORDER_LINK" // در انتظار لینک جدید برای ویرایش سفارش
-
-	StateAdminWaitUserID        UserState = "ADMIN_WAIT_USER_ID"        // ادمین در انتظار ارسال آیدی عددی کاربر
-	StateAdminWaitBalanceAmount UserState = "ADMIN_WAIT_BALANCE_AMOUNT" // ادمین در انتظار ارسال مبلغ برای شارژ/کسر
-	StateAdminWaitSettingValue  UserState = "ADMIN_WAIT_SETTING_VALUE"  // ادمین در انتظار ارسال مقدار جدید برای تنظیمات
-
-	StateAdminWaitCategoryName    UserState = "ADMIN_WAIT_CAT_NAME"      // انتظار نام دسته‌بندی
-	StateAdminWaitServiceName     UserState = "ADMIN_WAIT_SRV_NAME"      // انتظار نام سرویس
-	StateAdminWaitServicePriceUSD UserState = "ADMIN_WAIT_SRV_PRICE_USD" // انتظار قیمت دلاری سرویس
-	StateAdminWaitDollarPrice     UserState = "ADMIN_WAIT_DOLLAR_PRICE"  // انتظار قیمت روز دلار
-
-	StateAdminWaitForceJoinData UserState = "ADMIN_WAIT_FORCEJOIN_DATA" // انتظار لینک و آیدی کانال اجباری
-	StateAdminWaitTaskPenalty   UserState = "ADMIN_WAIT_TASK_PENALTY"   // انتظار مبلغ جریمه تسک
-	StateAdminWaitTaskCapacity  UserState = "ADMIN_WAIT_TASK_CAPACITY"  // انتظار ظرفیت جدید تسک
-
-	StateAdminWaitTicketReply  UserState = "ADMIN_WAIT_TICKET_REPLY"  // انتظار پاسخ ادمین به تیکت کاربر
-	StateAdminWaitBroadcastMsg UserState = "ADMIN_WAIT_BROADCAST_MSG" // انتظار ارسال پیام یا فوروارد برای ارسال همگانی
-
-	StateWaitConvertAmountStars UserState = "WAIT_CONVERT_AMOUNT_STARS" // انتظار مقدار استارز برای تبدیل
-	StateWaitConvertAmountToman UserState = "WAIT_CONVERT_AMOUNT_TOMAN" // انتظار مقدار امتیاز برای تبدیل به تومان
-
-	StateAdminWaitOrderSearch UserState = "ADMIN_WAIT_ORDER_SEARCH" // ادمین در انتظار ارسال کد رهگیری سفارش
-
-	StateAdminWaitNewTaskData UserState = "ADMIN_WAIT_NEW_TASK_DATA" // ادمین در انتظار ارسال اطلاعات تسک جدید
-
-	StateAdminWaitNewDrawData UserState = "ADMIN_WAIT_NEW_DRAW_DATA" // ادمین در انتظار ارسال اطلاعات قرعه‌کشی جدید
-	StateAdminWaitLeagueRules UserState = "ADMIN_WAIT_LEAGUE_RULES"  // ادمین در انتظار ارسال متن قوانین لیگ
-
+	StateAdminWaitNewGiftData UserState = "ADMIN_WAIT_NEW_GIFT_DATA" // ادمین در انتظار ارسال اطلاعات گیفت جدید
 )
 
 // Tenant (موجودیت اصلی برای معماری SaaS)
@@ -329,4 +321,14 @@ type DrawEntry struct {
 	LuckyDrawID uint `gorm:"index"`
 	UserID      uint `gorm:"index"`
 	Entries     int  // تعداد شانس‌های ثبت شده (کاربر می‌تواند چند تیکت خرج کند)
+}
+
+// GiftItem (گیفت‌های قابل برداشت و قابل مدیریت توسط ادمین)
+type GiftItem struct {
+	ID         uint    `gorm:"primaryKey"`
+	TenantID   uint    `gorm:"index"`
+	Title      string  // عنوان گیفت (مثلاً: 🧸 گیفت تدی)
+	CostPoints float64 // هزینه به امتیاز (مثلاً: 30)
+	IsActive   bool    `gorm:"default:true"`
+	CreatedAt  time.Time
 }

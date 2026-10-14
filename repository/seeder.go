@@ -61,4 +61,17 @@ func RunSeeder(db *gorm.DB, masterBotToken string) {
 		db.Create(&sponsorServices)
 		log.Println("✅ سرویس‌های پایه اسپانسرینگ در جدول ServiceItems ثبت شد.")
 	}
+
+	// ۴. ثبت گیفت‌های پیش‌فرض اولیه برای بخش برداشت و مدیریت گیفت‌ها
+	var giftCount int64
+	db.Model(&domain.GiftItem{}).Where("tenant_id = ?", tenantID).Count(&giftCount)
+	if giftCount == 0 {
+		defaultGifts := []domain.GiftItem{
+			{TenantID: tenantID, Title: "🧸 گیفت تدی", CostPoints: 30, IsActive: true},
+			{TenantID: tenantID, Title: "❤️ گیفت قلب", CostPoints: 50, IsActive: true},
+		}
+		db.Create(&defaultGifts)
+		log.Println("✅ گیفت‌های پیش‌فرض در جدول GiftItems ثبت شد.")
+	}
+
 }

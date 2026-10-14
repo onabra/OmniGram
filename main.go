@@ -40,10 +40,11 @@ func main() {
 		&domain.Receipt{},
 		&domain.ForceJoin{},
 		&domain.Withdrawal{},
-
 		&domain.SupportTicket{},
 		&domain.SupportMessage{},
 		&domain.League{},
+
+		&domain.GiftItem{},
 	)
 	if err != nil {
 		log.Println("⚠️ خطا در مایگریشن جداول:", err)

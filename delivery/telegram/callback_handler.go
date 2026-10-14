@@ -936,8 +936,47 @@ func (h *PollingHandler) HandleCallback(tenant *domain.Tenant, update tgbotapi.U
 		}
 
 		if data == "withdraw_select_gift" {
-			markup := h.KeyboardBuilder.BuildWithdrawGiftMenu()
-			h.SafeBot.SafeEditText(chatID, messageID, "🎁 لطفاً گیفت مورد نظر خود را انتخاب کنید:", &markup)
+			gifts, _ := h.WithdrawalRepo.GetActiveGifts(tenant.ID)
+			if len(gifts) == 0 {
+				h.SafeBot.SafeAnswerCallback(callback.ID, "🎁 در حال حاضر گیفت فعالی برای برداشت وجود ندارد.", true)
+				return
+			}
+			markup := h.KeyboardBuilder.BuildWithdrawGiftMenu(gifts)
+			h.SafeBot.SafeEditText(chatID, messageID, "🎁 لطفاً گیفت مورد نظر خود را جهت دریافت انتخاب کنید:", &markup)
+			return
+		}
+
+		// انتخاب یکی از گیفت‌های داینامیک
+		if strings.HasPrefix(data, "withdraw_gift_") {
+			giftIDStr := strings.TrimPrefix(data, "withdraw_gift_")
+			giftID, _ := strconv.Atoi(giftIDStr)
+
+			gift, err := h.WithdrawalRepo.GetGiftByID(tenant.ID, uint(giftID))
+			if err != nil || gift == nil || !gift.IsActive {
+				h.SafeBot.SafeAnswerCallback(callback.ID, "❌ این گیفت دیگر موجود نیست.", true)
+				return
+			}
+
+			if user.PointBalance < gift.CostPoints {
+				h.SafeBot.SafeAnswerCallback(callback.ID, fmt.Sprintf("❌ موجودی امتیاز شما کافی نیست (نیاز به %.0f امتیاز).", gift.CostPoints), true)
+				return
+			}
+
+			user.PointBalance -= gift.CostPoints
+			_ = h.UserRepo.UpdateBalances(tenant.ID, user.ID, user.TomanBalance, user.PointBalance, user.StarsBalance)
+			// ذخیره نام دقیق گیفت در فیلد Currency و امتیاز کسر شده در Amount
+			_ = h.UserRepo.UpdateWithdrawDraft(tenant.ID, user.ID, "GIFT: "+gift.Title, gift.CostPoints)
+			_ = h.UserRepo.UpdateUserState(tenant.ID, user.ID, domain.StateWaitWithdrawWallet)
+
+			h.SafeBot.SafeAnswerCallback(callback.ID, "✅ امتیاز کسر شد. لطفاً آیدی مقصد را بفرستید.", false)
+			h.SafeBot.SafeDeleteMessage(chatID, messageID)
+
+			prompt := fmt.Sprintf("🎁 شما **%s** را انتخاب کردید.\n\n🔗 لطفاً **آیدی کاربری تلگرام (@username)** که می‌خواهید گیفت برای او ارسال شود را بفرستید:", gift.Title)
+			msg := tgbotapi.NewMessage(chatID, prompt)
+			msg.ParseMode = "Markdown"
+			accMenu, _ := h.KeyboardBuilder.BuildUserAccountMenu(tenant.ID, lang)
+			msg.ReplyMarkup = accMenu
+			_, _ = h.SafeBot.Bot.Send(msg)
 			return
 		}
 
@@ -946,13 +985,16 @@ func (h *PollingHandler) HandleCallback(tenant *domain.Tenant, update tgbotapi.U
 			if len(parts) != 4 {
 				return
 			}
-			currency := parts[2] // STARS یا GIFT
+			currency := parts[2] // STARS
 			amount, _ := strconv.ParseFloat(parts[3], 64)
 
-			// محاسبه هزینه به امتیاز
+			rate := tenant.PointToStarRate
+			if rate <= 0 {
+				rate = 3.0
+			}
 			cost := amount
 			if currency == "STARS" {
-				cost = amount * 3.0 // طبق قانون کارفرما: هر ۳ امتیاز = ۱ استارز
+				cost = amount * rate
 			}
 
 			if user.PointBalance < cost {
@@ -960,17 +1002,15 @@ func (h *PollingHandler) HandleCallback(tenant *domain.Tenant, update tgbotapi.U
 				return
 			}
 
-			// کسر موجودی و ثبت پیش‌نویس برداشت
 			user.PointBalance -= cost
 			_ = h.UserRepo.UpdateBalances(tenant.ID, user.ID, user.TomanBalance, user.PointBalance, user.StarsBalance)
 			_ = h.UserRepo.UpdateWithdrawDraft(tenant.ID, user.ID, currency, amount)
 			_ = h.UserRepo.UpdateUserState(tenant.ID, user.ID, domain.StateWaitWithdrawWallet)
 
 			h.SafeBot.SafeAnswerCallback(callback.ID, "✅ مبلغ کسر شد. لطفاً لینک را بفرستید.", false)
-
 			h.SafeBot.SafeDeleteMessage(chatID, messageID)
 
-			prompt := "🔗 لطفاً **لینک پست** (برای دریافت استارز) یا **آیدی کاربری** (برای دریافت گیفت) را ارسال کنید:"
+			prompt := "🔗 لطفاً **لینک پست کانال** (برای دریافت ری‌اکشن استارز) را ارسال کنید:"
 			msg := tgbotapi.NewMessage(chatID, prompt)
 			msg.ParseMode = "Markdown"
 			accMenu, _ := h.KeyboardBuilder.BuildUserAccountMenu(tenant.ID, lang)
@@ -978,6 +1018,50 @@ func (h *PollingHandler) HandleCallback(tenant *domain.Tenant, update tgbotapi.U
 			_, _ = h.SafeBot.Bot.Send(msg)
 			return
 		}
+
+		//if data == "withdraw_select_gift" {
+		//	markup := h.KeyboardBuilder.BuildWithdrawGiftMenu()
+		//	h.SafeBot.SafeEditText(chatID, messageID, "🎁 لطفاً گیفت مورد نظر خود را انتخاب کنید:", &markup)
+		//	return
+		//}
+
+		//if strings.HasPrefix(data, "withdraw_do_") {
+		//	parts := strings.Split(data, "_")
+		//	if len(parts) != 4 {
+		//		return
+		//	}
+		//	currency := parts[2] // STARS یا GIFT
+		//	amount, _ := strconv.ParseFloat(parts[3], 64)
+		//
+		//	// محاسبه هزینه به امتیاز
+		//	cost := amount
+		//	if currency == "STARS" {
+		//		cost = amount * 3.0 // طبق قانون کارفرما: هر ۳ امتیاز = ۱ استارز
+		//	}
+		//
+		//	if user.PointBalance < cost {
+		//		h.SafeBot.SafeAnswerCallback(callback.ID, "❌ موجودی امتیاز شما کافی نیست.", true)
+		//		return
+		//	}
+		//
+		//	// کسر موجودی و ثبت پیش‌نویس برداشت
+		//	user.PointBalance -= cost
+		//	_ = h.UserRepo.UpdateBalances(tenant.ID, user.ID, user.TomanBalance, user.PointBalance, user.StarsBalance)
+		//	_ = h.UserRepo.UpdateWithdrawDraft(tenant.ID, user.ID, currency, amount)
+		//	_ = h.UserRepo.UpdateUserState(tenant.ID, user.ID, domain.StateWaitWithdrawWallet)
+		//
+		//	h.SafeBot.SafeAnswerCallback(callback.ID, "✅ مبلغ کسر شد. لطفاً لینک را بفرستید.", false)
+		//
+		//	h.SafeBot.SafeDeleteMessage(chatID, messageID)
+		//
+		//	prompt := "🔗 لطفاً **لینک پست** (برای دریافت استارز) یا **آیدی کاربری** (برای دریافت گیفت) را ارسال کنید:"
+		//	msg := tgbotapi.NewMessage(chatID, prompt)
+		//	msg.ParseMode = "Markdown"
+		//	accMenu, _ := h.KeyboardBuilder.BuildUserAccountMenu(tenant.ID, lang)
+		//	msg.ReplyMarkup = accMenu
+		//	_, _ = h.SafeBot.Bot.Send(msg)
+		//	return
+		//}
 	}
 
 	// [delivery/telegram/callback_handler.go]
@@ -1164,6 +1248,14 @@ func (h *PollingHandler) HandleCallback(tenant *domain.Tenant, update tgbotapi.U
 				msg := tgbotapi.NewMessage(chatID, "🛒 *مدیریت سفارشات*\n\nلطفاً **کد رهگیری (Tracking Code)** سفارش مورد نظر را جهت بررسی و تغییر وضعیت ارسال کنید:")
 				msg.ParseMode = "Markdown"
 				_, _ = h.SafeBot.Bot.Send(msg)
+			}
+			return
+
+		case action == "gifts":
+			if isSuper || isAdmin {
+				gifts, _ := h.WithdrawalRepo.GetActiveGifts(tenant.ID)
+				markup := h.KeyboardBuilder.BuildAdminGiftsListMenu(gifts)
+				h.SafeBot.SafeEditText(chatID, messageID, "🎁 *مدیریت گیفت‌های قابل برداشت*\n\nلیست گیفت‌های فعال در زیر نمایش داده شده است. برای حذف روی گیفت کلیک کنید یا گیفت جدید بسازید:", &markup)
 			}
 			return
 
@@ -1621,6 +1713,35 @@ func (h *PollingHandler) HandleCallback(tenant *domain.Tenant, update tgbotapi.U
 	//		return
 	//	}
 	//	user, _ := h.UserRepo.GetUserByTelegramID(tenant.ID, chatID)
+
+	// مدیریت گیفت‌ها توسط ادمین
+	if strings.HasPrefix(data, "admgift_") {
+		if !botHandlerTemp.IsSuperAdmin(userID) && !botHandlerTemp.IsAdmin(userID) {
+			return
+		}
+		action := strings.TrimPrefix(data, "admgift_")
+
+		if action == "add" {
+			adminUser, _ := h.UserRepo.GetUserByTelegramID(tenant.ID, userID)
+			_ = h.UserRepo.UpdateUserState(tenant.ID, adminUser.ID, domain.StateAdminWaitNewGiftData)
+			h.SafeBot.SafeAnswerCallback(callback.ID, "افزودن گیفت جدید", false)
+			msg := tgbotapi.NewMessage(chatID, "🎁 *افزودن گیفت جدید*\n\nلطفاً **عنوان گیفت (همراه با ایموجی)** و **هزینه به امتیاز** را با جداکننده `|` ارسال کنید.\n\n💡 *مثال:*\n`🧸 گیفت تدی | 30`\n`🚀 گیفت موشک | 100`")
+			msg.ParseMode = "Markdown"
+			_, _ = h.SafeBot.Bot.Send(msg)
+			return
+		}
+
+		if strings.HasPrefix(action, "del_") {
+			giftID, _ := strconv.Atoi(strings.TrimPrefix(action, "del_"))
+			_ = h.WithdrawalRepo.DeleteGift(tenant.ID, uint(giftID))
+			h.SafeBot.SafeAnswerCallback(callback.ID, "✅ گیفت حذف شد.", false)
+
+			gifts, _ := h.WithdrawalRepo.GetActiveGifts(tenant.ID)
+			markup := h.KeyboardBuilder.BuildAdminGiftsListMenu(gifts)
+			h.SafeBot.SafeEditText(chatID, messageID, "🎁 *مدیریت گیفت‌های قابل برداشت*\n\n✅ لیست گیفت‌ها بروزرسانی شد:", &markup)
+			return
+		}
+	}
 
 	// مدیریت تسک‌ها (ادمین)
 	if strings.HasPrefix(data, "admtask_") {

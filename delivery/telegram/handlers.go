@@ -996,6 +996,37 @@ func (h *BotHandler) HandleMessage(tenant *domain.Tenant, chatID int64, text str
 		}
 	}
 
+	// --- افزودن گیفت جدید توسط ادمین ---
+	if currentUser.State == domain.StateAdminWaitNewGiftData {
+		if text == backMainBtnText {
+			_ = h.UserRepo.UpdateUserState(tenant.ID, currentUser.ID, domain.StateNormal)
+		} else {
+			parts := strings.Split(text, "|")
+			if len(parts) < 2 {
+				_ = h.SafeBot.SendMessage(chatID, "❌ فرمت اشتباه است. لطفاً عنوان و امتیاز را با `|` جدا کنید (مثال: `🧸 گیفت تدی | 30`).")
+				return
+			}
+			title := strings.TrimSpace(parts[0])
+			cost, err := strconv.ParseFloat(strings.TrimSpace(parts[1]), 64)
+			if err != nil || cost <= 0 || title == "" {
+				_ = h.SafeBot.SendMessage(chatID, "❌ مقدار امتیاز باید یک عدد معتبر بزرگتر از صفر باشد.")
+				return
+			}
+
+			newGift := &domain.GiftItem{
+				TenantID:   tenant.ID,
+				Title:      title,
+				CostPoints: cost,
+				IsActive:   true,
+			}
+			_ = h.WithdrawalRepo.CreateGift(newGift)
+
+			_ = h.SafeBot.SendMessage(chatID, fmt.Sprintf("✅ گیفت «%s» با هزینه %.0f امتیاز با موفقیت به بخش برداشت اضافه شد.", title, cost))
+			_ = h.UserRepo.UpdateUserState(tenant.ID, currentUser.ID, domain.StateNormal)
+			return
+		}
+	}
+
 	switch text {
 
 	case btnConvert:
@@ -1022,8 +1053,12 @@ func (h *BotHandler) HandleMessage(tenant *domain.Tenant, chatID int64, text str
 
 	case btnWithdraw:
 		// بررسی شروط کارفرما: حداقل ۳ رفرال و ۲ تسک
+		//refStats, _ := h.ReferralRepo.GetReferralStats(tenant.ID, currentUser.ID)
+		//totalRefs := refStats.LeagueTotal + refStats.DrawTotal + refStats.PointTotal + refStats.WalletTotal
+		//taskCount := h.TaskRepo.GetUserApprovedTaskCount(tenant.ID, currentUser.ID)
+
 		refStats, _ := h.ReferralRepo.GetReferralStats(tenant.ID, currentUser.ID)
-		totalRefs := refStats.LeagueTotal + refStats.DrawTotal + refStats.PointTotal + refStats.WalletTotal
+		totalRefs := refStats.LeagueTotal + refStats.DrawTotal + refStats.StarsTotal + refStats.GiftTotal + refStats.PointTotal + refStats.WalletTotal
 		taskCount := h.TaskRepo.GetUserApprovedTaskCount(tenant.ID, currentUser.ID)
 
 		if totalRefs < 3 || taskCount < 2 {
@@ -1125,27 +1160,56 @@ func (h *BotHandler) HandleMessage(tenant *domain.Tenant, chatID int64, text str
 			_, _ = h.SafeBot.Bot.Send(msg)
 		}
 
+	//case refStatsBtnText, btnReferral:
+	//	if currentUser != nil {
+	//		stats, err := h.ReferralRepo.GetReferralStats(tenant.ID, currentUser.ID)
+	//		if err == nil && stats != nil {
+	//			botUsername := h.SafeBot.Bot.Self.UserName
+	//			dashboardMsg := fmt.Sprintf("👥 *داشبورد رفرال‌های شما*\n\n"+
+	//				"🏆 *رفرال لیگ*: %d نفر\n"+
+	//				"🔗 لینک: `https://t.me/%s?start=league_%d`\n\n"+
+	//				"🎰 *رفرال قرعه‌کشی*: %d نفر\n"+
+	//				"🔗 لینک: `https://t.me/%s?start=draw_%d`\n\n"+
+	//				"⭐ *رفرال امتیاز*: %d نفر\n"+
+	//				"🔗 لینک: `https://t.me/%s?start=point_%d`\n\n"+
+	//				"💰 *رفرال کیف پول*: %d نفر\n"+
+	//				"🔗 لینک: `https://t.me/%s?start=wallet_%d`\n\n"+
+	//				"➖➖➖➖➖➖➖\n"+
+	//				"🎟 *تیکت‌های شما*: %d\n"+
+	//				"💤 زیرمجموعه‌های غیرفعال: %d",
+	//				stats.LeagueTotal, botUsername, currentUser.ID,
+	//				stats.DrawTotal, botUsername, currentUser.ID,
+	//				stats.PointTotal, botUsername, currentUser.ID,
+	//				stats.WalletTotal, botUsername, currentUser.ID,
+	//				currentUser.DrawTickets, stats.InactiveUsers)
+	//
+	//			msg := tgbotapi.NewMessage(chatID, dashboardMsg)
+	//			msg.ParseMode = "Markdown"
+	//			_, _ = h.SafeBot.Bot.Send(msg)
+	//		}
+	//	}
+
 	case refStatsBtnText, btnReferral:
 		if currentUser != nil {
 			stats, err := h.ReferralRepo.GetReferralStats(tenant.ID, currentUser.ID)
 			if err == nil && stats != nil {
 				botUsername := h.SafeBot.Bot.Self.UserName
-				dashboardMsg := fmt.Sprintf("👥 *داشبورد رفرال‌های شما*\n\n"+
+				dashboardMsg := fmt.Sprintf("👥 *داشبورد رفرال‌های ۴ گانه شما*\n\n"+
 					"🏆 *رفرال لیگ*: %d نفر\n"+
 					"🔗 لینک: `https://t.me/%s?start=league_%d`\n\n"+
 					"🎰 *رفرال قرعه‌کشی*: %d نفر\n"+
 					"🔗 لینک: `https://t.me/%s?start=draw_%d`\n\n"+
-					"⭐ *رفرال امتیاز*: %d نفر\n"+
-					"🔗 لینک: `https://t.me/%s?start=point_%d`\n\n"+
-					"💰 *رفرال کیف پول*: %d نفر\n"+
-					"🔗 لینک: `https://t.me/%s?start=wallet_%d`\n\n"+
+					"⭐ *رفرال استارز*: %d نفر\n"+
+					"🔗 لینک: `https://t.me/%s?start=stars_%d`\n\n"+
+					"🎁 *رفرال گیفت*: %d نفر\n"+
+					"🔗 لینک: `https://t.me/%s?start=gift_%d`\n\n"+
 					"➖➖➖➖➖➖➖\n"+
-					"🎟 *تیکت‌های شما*: %d\n"+
-					"💤 زیرمجموعه‌های غیرفعال: %d",
+					"🎟 *تیکت‌های قرعه‌کشی شما*: %d\n"+
+					"💤 زیرمجموعه‌های غیرفعال (بیش از ۱۰ روز): %d",
 					stats.LeagueTotal, botUsername, currentUser.ID,
 					stats.DrawTotal, botUsername, currentUser.ID,
-					stats.PointTotal, botUsername, currentUser.ID,
-					stats.WalletTotal, botUsername, currentUser.ID,
+					stats.StarsTotal, botUsername, currentUser.ID,
+					stats.GiftTotal, botUsername, currentUser.ID,
 					currentUser.DrawTickets, stats.InactiveUsers)
 
 				msg := tgbotapi.NewMessage(chatID, dashboardMsg)

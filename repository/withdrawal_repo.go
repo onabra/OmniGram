@@ -23,3 +23,30 @@ func (r *WithdrawalRepository) GetByID(tenantID uint, id uint) (*domain.Withdraw
 func (r *WithdrawalRepository) UpdateStatus(withdrawal *domain.Withdrawal) error {
 	return r.DB.Model(withdrawal).Update("status", withdrawal.Status).Error
 }
+
+// GetActiveGifts دریافت لیست گیفت‌های فعال برای منوی برداشت و پنل مدیریت
+func (r *WithdrawalRepository) GetActiveGifts(tenantID uint) ([]domain.GiftItem, error) {
+	var gifts []domain.GiftItem
+	err := r.DB.Where("tenant_id = ? AND is_active = ?", tenantID, true).Order("cost_points asc").Find(&gifts).Error
+	return gifts, err
+}
+
+// GetGiftByID دریافت اطلاعات یک گیفت خاص
+func (r *WithdrawalRepository) GetGiftByID(tenantID uint, id uint) (*domain.GiftItem, error) {
+	var gift domain.GiftItem
+	err := r.DB.Where("tenant_id = ? AND id = ?", tenantID, id).First(&gift).Error
+	if err != nil {
+		return nil, err
+	}
+	return &gift, nil
+}
+
+// CreateGift افزودن گیفت جدید توسط ادمین
+func (r *WithdrawalRepository) CreateGift(gift *domain.GiftItem) error {
+	return r.DB.Create(gift).Error
+}
+
+// DeleteGift حذف گیفت توسط ادمین
+func (r *WithdrawalRepository) DeleteGift(tenantID uint, id uint) error {
+	return r.DB.Where("tenant_id = ? AND id = ?", tenantID, id).Delete(&domain.GiftItem{}).Error
+}

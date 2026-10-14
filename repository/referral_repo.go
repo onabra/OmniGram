@@ -16,6 +16,8 @@ type ReferralStats struct {
 	TotalInvited  int64
 	Approved      int64
 	InactiveUsers int64
+	StarsTotal    int64
+	GiftTotal     int64
 }
 
 // LeagueRankResult ساختار خروجی جدول رتبه‌بندی لیگ رفرال
@@ -68,8 +70,10 @@ func (r *ReferralRepository) GetReferrer(tenantID uint, referredID uint) (*domai
 func (r *ReferralRepository) GetReferralStats(tenantID uint, referrerID uint) (*ReferralStats, error) {
 	stats := &ReferralStats{}
 
-	r.db.Model(&domain.Referral{}).Where("tenant_id = ? AND referrer_id = ? AND status = ? AND referral_type = ?", tenantID, referrerID, "APPROVED", "league").Count(&stats.LeagueTotal)
-	r.db.Model(&domain.Referral{}).Where("tenant_id = ? AND referrer_id = ? AND status = ? AND referral_type = ?", tenantID, referrerID, "APPROVED", "draw").Count(&stats.DrawTotal)
+	r.db.Model(&domain.Referral{}).Where("tenant_id = ? AND referrer_id = ? AND status IN ('APPROVED', 'ARCHIVED') AND referral_type = ?", tenantID, referrerID, "league").Count(&stats.LeagueTotal)
+	r.db.Model(&domain.Referral{}).Where("tenant_id = ? AND referrer_id = ? AND status = ? AND referral_type IN ('draw', 'lottery')", tenantID, referrerID, "APPROVED").Count(&stats.DrawTotal)
+	r.db.Model(&domain.Referral{}).Where("tenant_id = ? AND referrer_id = ? AND status = ? AND referral_type = ?", tenantID, referrerID, "APPROVED", "stars").Count(&stats.StarsTotal)
+	r.db.Model(&domain.Referral{}).Where("tenant_id = ? AND referrer_id = ? AND status = ? AND referral_type = ?", tenantID, referrerID, "APPROVED", "gift").Count(&stats.GiftTotal)
 	r.db.Model(&domain.Referral{}).Where("tenant_id = ? AND referrer_id = ? AND status = ? AND referral_type = ?", tenantID, referrerID, "APPROVED", "point").Count(&stats.PointTotal)
 	r.db.Model(&domain.Referral{}).Where("tenant_id = ? AND referrer_id = ? AND status = ? AND referral_type = ?", tenantID, referrerID, "APPROVED", "wallet").Count(&stats.WalletTotal)
 
