@@ -193,6 +193,7 @@ func (h *BotHandler) HandleMessage(tenant *domain.Tenant, chatID int64, text str
 	btnRefLeague := getText("btn_ref_league", "لیگ")
 
 	btnTrackOrder := getText("btn_track_order", "🔍 پیگیری سفارش")
+	btnCryptoPrices := getText("btn_crypto_prices", "💎 قیمت لحظه‌ای ارزها")
 
 	btnConvert := getText("btn_convert", "🔄 تبدیل موجودی")
 
@@ -1273,6 +1274,133 @@ func (h *BotHandler) HandleMessage(tenant *domain.Tenant, chatID int64, text str
 		}
 	}
 
+	// --- تکمیل مراحل خرید سرویس از فروشگاه (لینک و تعداد) ---
+	if currentUser.State == domain.StateWaitServiceLink {
+		if text == backMainBtnText {
+			_ = h.UserRepo.UpdateUserState(tenant.ID, currentUser.ID, domain.StateNormal)
+		} else {
+			draftOrder, err := h.OrderRepo.GetDraftOrder(tenant.ID, currentUser.ID)
+			if err != nil || draftOrder == nil {
+				_ = h.SafeBot.SendMessage(chatID, "❌ سفارش پیش‌نویسی یافت نشد. لطفاً مجدداً از طریق فروشگاه اقدام کنید.")
+				_ = h.UserRepo.UpdateUserState(tenant.ID, currentUser.ID, domain.StateNormal)
+				return
+			}
+
+			draftOrder.TargetLink = strings.TrimSpace(text)
+			_ = h.OrderRepo.UpdateOrder(draftOrder)
+			_ = h.UserRepo.UpdateUserState(tenant.ID, currentUser.ID, domain.StateWaitServiceCount)
+
+			_ = h.SafeBot.SendMessage(chatID, "✅ لینک هدف ثبت شد.\n\n🔢 لطفاً **تعداد درخواستی** خود را به صورت عدد ارسال کنید (مثلاً: 500):")
+			return
+		}
+	}
+
+	if currentUser.State == domain.StateWaitServiceCount {
+		if text == backMainBtnText {
+			_ = h.UserRepo.UpdateUserState(tenant.ID, currentUser.ID, domain.StateNormal)
+		} else {
+			quantity, err := strconv.Atoi(strings.TrimSpace(text))
+			if err != nil || quantity <= 0 {
+				_ = h.SafeBot.SendMessage(chatID, "❌ تعداد وارد شده نامعتبر است. لطفاً یک عدد صحیح بزرگتر از صفر بفرستید:")
+				return
+			}
+
+			draftOrder, err := h.OrderRepo.GetDraftOrder(tenant.ID, currentUser.ID)
+			if err != nil || draftOrder == nil {
+				_ = h.SafeBot.SendMessage(chatID, "❌ سفارش پیش‌نویسی یافت نشد. لطفاً دوباره از فروشگاه اقدام کنید.")
+				_ = h.UserRepo.UpdateUserState(tenant.ID, currentUser.ID, domain.StateNormal)
+				return
+			}
+
+			serviceItem, err := h.ServiceRepo.GetServiceByID(tenant.ID, draftOrder.ServiceItemID)
+			if err != nil || serviceItem == nil {
+				_ = h.SafeBot.SendMessage(chatID, "❌ خطا در دریافت اطلاعات سرویس.")
+				_ = h.UserRepo.UpdateUserState(tenant.ID, currentUser.ID, domain.StateNormal)
+				return
+			}
+
+			// محاسبه تخفیف VIP بر اساس خرید ۳۰ روز گذشته
+			totalSpent, _ := h.OrderRepo.GetUserTotalSpentLast30Days(tenant.ID, currentUser.ID)
+			discountPercent := 0.0
+			if totalSpent > 500000 {
+				discountPercent = 5.0
+			} else if totalSpent > 200000 {
+				discountPercent = 3.0
+			} else if totalSpent > 100000 {
+				discountPercent = 1.0
+			}
+
+			unitPrice := serviceItem.PriceToman * (1.0 - (discountPercent / 100.0))
+			totalAmount := unitPrice * float64(quantity)
+
+			draftOrder.Quantity = quantity
+			draftOrder.TotalAmount = totalAmount
+			_ = h.OrderRepo.UpdateOrder(draftOrder)
+
+			_ = h.UserRepo.UpdateUserState(tenant.ID, currentUser.ID, domain.StateNormal)
+
+			msgText := fmt.Sprintf("🛍 *فاکتور نهایی سفارش فروشگاه*\n\n"+
+				"📦 سرویس: %s\n"+
+				"🔗 لینک هدف: `%s`\n"+
+				"🔢 تعداد: %d\n"+
+				"💎 تخفیف VIP: %.0f%%\n"+
+				"💰 مبلغ قابل پرداخت: **%.0f تومان**\n\n"+
+				"👇 لطفاً روش پرداخت را انتخاب کنید:",
+				serviceItem.Title, draftOrder.TargetLink, quantity, discountPercent, totalAmount)
+
+			paymentMenu, _ := h.KeyboardBuilder.BuildPaymentMethodMenu(tenant.ID, lang, draftOrder.ID)
+			msg := tgbotapi.NewMessage(chatID, msgText)
+			msg.ParseMode = "Markdown"
+			msg.ReplyMarkup = paymentMenu
+			_, _ = h.SafeBot.Bot.Send(msg)
+			return
+		}
+	}
+
+	// --- دریافت رسید متنی بدون نیاز به عکس برای کاربران دارای کارت تأیید شده (VerifiedCard) ---
+	if currentUser.State == domain.StateWaitPaymentReceipt {
+		if text == backMainBtnText {
+			_ = h.UserRepo.UpdateUserState(tenant.ID, currentUser.ID, domain.StateNormal)
+		} else {
+			verifiedCard, _ := h.ReceiptRepo.GetVerifiedCard(tenant.ID, currentUser.ID)
+			if verifiedCard == nil || !verifiedCard.IsVerified {
+				_ = h.SafeBot.SendMessage(chatID, "📸 از آنجا که این اولین خرید کارت‌به‌کارت شماست، لطفاً **عکس رسید پرداخت** را ارسال کنید (در خریدهای بعدی نیازی به ارسال عکس نخواهد بود).")
+				return
+			}
+
+			draftOrder, err := h.OrderRepo.GetDraftOrder(tenant.ID, currentUser.ID)
+			if err != nil || draftOrder == nil {
+				_ = h.SafeBot.SendMessage(chatID, "❌ سفارش معلقی یافت نشد.")
+				_ = h.UserRepo.UpdateUserState(tenant.ID, currentUser.ID, domain.StateNormal)
+				return
+			}
+
+			receipt := &domain.Receipt{
+				TenantID: tenant.ID,
+				UserID:   currentUser.ID,
+				OrderID:  draftOrder.ID,
+				FileID:   "TEXT_KYC_VERIFIED: " + text,
+				Amount:   draftOrder.TotalAmount,
+				Status:   "PENDING",
+			}
+			_ = h.ReceiptRepo.CreateReceipt(receipt)
+
+			_ = h.SafeBot.SendMessage(chatID, "✅ اطلاعات واریز شما (کاربر احراز هویت شده) ثبت شد و برای تأیید نهایی به ادمین ارسال گردید.")
+			_ = h.UserRepo.UpdateUserState(tenant.ID, currentUser.ID, domain.StateNormal)
+
+			if tenant.ReportChannelID != "" {
+				chID, _ := strconv.ParseInt(tenant.ReportChannelID, 10, 64)
+				reportMsg := fmt.Sprintf("🧾 *رسید واریز (کاربر احراز هویت شده ✅)*\n\n👤 کاربر: [%s](tg://user?id=%d)\n🛒 کد سفارش: `%s`\n💰 مبلغ: %.0f تومان\n📝 کد پیگیری / مشخصات ارسالی:\n`%s`",
+					currentUser.FirstName, currentUser.TelegramID, draftOrder.TrackingCode, draftOrder.TotalAmount, text)
+				msg := tgbotapi.NewMessage(chID, reportMsg)
+				msg.ParseMode = "Markdown"
+				msg.ReplyMarkup = h.KeyboardBuilder.BuildAdminReceiptMenu(receipt.ID)
+				_, _ = h.SafeBot.Bot.Send(msg)
+			}
+			return
+		}
+	}
+
 	switch text {
 
 	case btnConvert:
@@ -1328,6 +1456,31 @@ func (h *BotHandler) HandleMessage(tenant *domain.Tenant, chatID int64, text str
 		msg := tgbotapi.NewMessage(chatID, msgText)
 		msg.ParseMode = "Markdown"
 		msg.ReplyMarkup = accMenu // استفاده از کیبورد حساب کاربری برای داشتن دکمه بازگشت
+		_, _ = h.SafeBot.Bot.Send(msg)
+
+	case btnCryptoPrices:
+		prices := services.GetLiveCryptoPrices()
+		dollar := tenant.DollarPrice
+		if dollar <= 0 {
+			dollar = 60000
+		}
+
+		msgText := fmt.Sprintf("💎 *قیمت لحظه‌ای ارزهای دیجیتال*\n\n"+
+			"🔹 **تون‌کوین (TON):**\n"+
+			"💵 دلاری: `$%.2f` | 🇮🇷 تومانی: `%.0f تومان`\n\n"+
+			"🔸 **ترون (TRX):**\n"+
+			"💵 دلاری: `$%.4f` | 🇮🇷 تومانی: `%.0f تومان`\n\n"+
+			"🔹 **گرام (GRAM):**\n"+
+			"💵 دلاری: `$%.5f` | 🇮🇷 تومانی: `%.0f تومان`\n\n"+
+			"📌 *نرخ دلار مبنا در سیستم:* `%.0f تومان`\n"+
+			"ℹ️ *توجه: در صورت ثبت سفارش، محاسبه بر اساس نرخ لحظه ثبت انجام شده و درگیر نوسانات بعدی نخواهید شد.*",
+			prices.TonUSD, prices.TonUSD*dollar,
+			prices.TrxUSD, prices.TrxUSD*dollar,
+			prices.GramUSD, prices.GramUSD*dollar,
+			dollar)
+
+		msg := tgbotapi.NewMessage(chatID, msgText)
+		msg.ParseMode = "Markdown"
 		_, _ = h.SafeBot.Bot.Send(msg)
 
 	case "/admin", btnAdmin:

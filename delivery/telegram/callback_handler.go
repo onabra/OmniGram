@@ -416,6 +416,19 @@ func (h *PollingHandler) HandleCallback(tenant *domain.Tenant, update tgbotapi.U
 		//	cardMsg := fmt.Sprintf("💳 لطفاً مبلغ %.0f تومان را به شماره کارت زیر واریز کنید:\n\n`1234-5678-9012-3456`\nبه نام: مدیریت\n\n📸 سپس عکس رسید پرداخت را همینجا ارسال کنید:", order.TotalAmount)
 		//	h.SafeBot.SafeEditText(chatID, messageID, cardMsg, nil)
 		//}
+		//case "card":
+		//	_ = h.UserRepo.UpdateUserState(tenant.ID, user.ID, domain.StateWaitPaymentReceipt)
+		//	cardNum := tenant.CardNumber
+		//	if cardNum == "" {
+		//		cardNum = "شماره کارتی توسط مدیریت ثبت نشده است"
+		//	}
+		//	cardHolder := tenant.CardHolder
+		//	if cardHolder == "" {
+		//		cardHolder = "مدیریت"
+		//	}
+		//	cardMsg := fmt.Sprintf("💳 لطفاً مبلغ **%.0f تومان** را به شماره کارت زیر واریز کنید:\n\n`%s`\n👤 به نام: **%s**\n\n📸 سپس عکس رسید پرداخت را همینجا ارسال کنید:", order.TotalAmount, cardNum, cardHolder)
+		//	h.SafeBot.SafeEditText(chatID, messageID, cardMsg, nil)
+		//}
 		case "card":
 			_ = h.UserRepo.UpdateUserState(tenant.ID, user.ID, domain.StateWaitPaymentReceipt)
 			cardNum := tenant.CardNumber
@@ -426,8 +439,17 @@ func (h *PollingHandler) HandleCallback(tenant *domain.Tenant, update tgbotapi.U
 			if cardHolder == "" {
 				cardHolder = "مدیریت"
 			}
-			cardMsg := fmt.Sprintf("💳 لطفاً مبلغ **%.0f تومان** را به شماره کارت زیر واریز کنید:\n\n`%s`\n👤 به نام: **%s**\n\n📸 سپس عکس رسید پرداخت را همینجا ارسال کنید:", order.TotalAmount, cardNum, cardHolder)
+
+			// بررسی احراز هویت کارت کاربر (VerifiedCard)
+			verifiedCard, _ := h.ReceiptRepo.GetVerifiedCard(tenant.ID, user.ID)
+			verifyNotice := "📸 سپس **عکس رسید و کارت بانکی** خود را جهت احراز هویت و تأیید پرداخت همینجا ارسال کنید:"
+			if verifiedCard != nil && verifiedCard.IsVerified {
+				verifyNotice = "✅ *حساب شما احراز هویت شده است!*\nنیازی به ارسال مجدد عکس کارت نیست؛ پس از واریز می‌توانید **شماره پیگیری / ۴ رقم آخر کارت** را به صورت متنی بفرستید (یا عکس رسید را ارسال کنید):"
+			}
+
+			cardMsg := fmt.Sprintf("💳 لطفاً مبلغ **%.0f تومان** را به شماره کارت زیر واریز کنید:\n\n`%s`\n👤 به نام: **%s**\n\n%s", order.TotalAmount, cardNum, cardHolder, verifyNotice)
 			h.SafeBot.SafeEditText(chatID, messageID, cardMsg, nil)
+
 		}
 
 		return
@@ -1328,6 +1350,9 @@ func (h *PollingHandler) HandleCallback(tenant *domain.Tenant, update tgbotapi.U
 			if receiptAction == "approve" {
 				receipt.Status = "APPROVED"
 				_ = h.ReceiptRepo.UpdateStatus(receipt)
+
+				// ثبت دائم احراز هویت کارت کاربر برای خریدهای بعدی بدون نیاز به عکس مجدد
+				_ = h.ReceiptRepo.ApproveUserCard(tenant.ID, receipt.UserID, "VERIFIED")
 
 				order.PaymentMethod = "CARD"
 				order.PaymentStatus = "PAID"
