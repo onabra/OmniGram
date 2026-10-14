@@ -34,3 +34,10 @@ func (r *CategoryRepository) GetCategoryByID(tenantID uint, id uint) (*domain.Ca
 func (r *CategoryRepository) CreateCategory(category *domain.Category) error {
 	return r.DB.Create(category).Error
 }
+
+// GetAllCategories واکشی تمام دسته‌بندی‌ها و زیردسته‌های فعال برای پنل ادمین
+func (r *CategoryRepository) GetAllCategories(tenantID uint) ([]domain.Category, error) {
+	var categories []domain.Category
+	err := r.DB.Where("tenant_id = ? AND is_active = ?", tenantID, true).Order("id asc").Find(&categories).Error
+	return categories, err
+}

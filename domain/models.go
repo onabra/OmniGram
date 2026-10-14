@@ -69,6 +69,13 @@ type Tenant struct {
 	LeagueRules         string  // قوانین و جوایز لیگ قابل ویرایش توسط کارفرما
 	CreatedAt           time.Time
 	UpdatedAt           time.Time
+
+	CardNumber         string  // شماره کارت بانکی کارفرما جهت کارت به کارت
+	CardHolder         string  // نام صاحب کارت بانکی
+	SupportGroupLink   string  // لینک گروه یا آیدی پشتیبانی کارفرما
+	DefaultTaskReward  float64 `gorm:"default:10"` // پاداش پیش‌فرض هر تسک (امتیاز)
+	DefaultTaskPenalty float64 `gorm:"default:50"` // جریمه پیش‌فرض لفت دادن از تسک
+
 }
 
 // Category (مثلاً ممبر، ویو، بوست)

@@ -50,3 +50,10 @@ func (r *WithdrawalRepository) CreateGift(gift *domain.GiftItem) error {
 func (r *WithdrawalRepository) DeleteGift(tenantID uint, id uint) error {
 	return r.DB.Where("tenant_id = ? AND id = ?", tenantID, id).Delete(&domain.GiftItem{}).Error
 }
+
+// GetPendingWithdrawals دریافت لیست درخواست‌های برداشت در انتظار تایید برای پنل ادمین
+func (r *WithdrawalRepository) GetPendingWithdrawals(tenantID uint) ([]domain.Withdrawal, error) {
+	var list []domain.Withdrawal
+	err := r.DB.Where("tenant_id = ? AND status = ?", tenantID, "PENDING").Order("id asc").Find(&list).Error
+	return list, err
+}

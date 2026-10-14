@@ -553,54 +553,54 @@ func (kb *KeyboardBuilder) BuildAdminWithdrawMenu(wID uint) tgbotapi.InlineKeybo
 	)
 }
 
-// BuildAdminUserActionMenu منوی عملیات دستی ادمین روی یک کاربر خاص
-func (kb *KeyboardBuilder) BuildAdminUserActionMenu(userID uint) tgbotapi.InlineKeyboardMarkup {
-	idStr := fmt.Sprintf("%d", userID)
-	return tgbotapi.NewInlineKeyboardMarkup(
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("➕ افزایش تومان", "admuser_addtoman_"+idStr),
-			tgbotapi.NewInlineKeyboardButtonData("➖ کسر تومان", "admuser_subtoman_"+idStr),
-		),
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("➕ افزایش امتیاز", "admuser_addpoint_"+idStr),
-			tgbotapi.NewInlineKeyboardButtonData("➖ کسر امتیاز", "admuser_subpoint_"+idStr),
-		),
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("📊 نمایش رفرال‌های کاربر", "admuser_refs_"+idStr),
-		),
-	)
-}
-
-// BuildAdminSettingsMenu منوی تنظیمات متغیرهای عددی سیستم
-func (kb *KeyboardBuilder) BuildAdminSettingsMenu() tgbotapi.InlineKeyboardMarkup {
-	return tgbotapi.NewInlineKeyboardMarkup(
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("⚙️ کارمزد لغو سفارش", "admset_cancelfee"),
-			tgbotapi.NewInlineKeyboardButtonData("⚙️ کارمزد انتقال گروه", "admset_transferfee"),
-		),
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("⚙️ نرخ تبدیل: ۱ امتیاز = ؟ تومان", "admset_ratetoman"),
-		),
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("⚙️ نرخ تبدیل: ؟ امتیاز = ۱ استارز", "admset_ratestar"),
-		),
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("⚙️ پاداش دعوت از غیرفعال‌ها", "admset_inactivebonus"),
-		),
-	)
-}
-
-// BuildAdminServicesMenu منوی مدیریت خدمات
-func (kb *KeyboardBuilder) BuildAdminServicesMenu() tgbotapi.InlineKeyboardMarkup {
-	return tgbotapi.NewInlineKeyboardMarkup(
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("➕ افزودن دسته‌بندی اصلی", "admsrv_addcat"),
-		),
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("➕ افزودن سرویس به دسته‌ها", "admsrv_addsrv"),
-		),
-	)
-}
+//// BuildAdminUserActionMenu منوی عملیات دستی ادمین روی یک کاربر خاص
+//func (kb *KeyboardBuilder) BuildAdminUserActionMenu(userID uint) tgbotapi.InlineKeyboardMarkup {
+//	idStr := fmt.Sprintf("%d", userID)
+//	return tgbotapi.NewInlineKeyboardMarkup(
+//		tgbotapi.NewInlineKeyboardRow(
+//			tgbotapi.NewInlineKeyboardButtonData("➕ افزایش تومان", "admuser_addtoman_"+idStr),
+//			tgbotapi.NewInlineKeyboardButtonData("➖ کسر تومان", "admuser_subtoman_"+idStr),
+//		),
+//		tgbotapi.NewInlineKeyboardRow(
+//			tgbotapi.NewInlineKeyboardButtonData("➕ افزایش امتیاز", "admuser_addpoint_"+idStr),
+//			tgbotapi.NewInlineKeyboardButtonData("➖ کسر امتیاز", "admuser_subpoint_"+idStr),
+//		),
+//		tgbotapi.NewInlineKeyboardRow(
+//			tgbotapi.NewInlineKeyboardButtonData("📊 نمایش رفرال‌های کاربر", "admuser_refs_"+idStr),
+//		),
+//	)
+//}
+//
+//// BuildAdminSettingsMenu منوی تنظیمات متغیرهای عددی سیستم
+//func (kb *KeyboardBuilder) BuildAdminSettingsMenu() tgbotapi.InlineKeyboardMarkup {
+//	return tgbotapi.NewInlineKeyboardMarkup(
+//		tgbotapi.NewInlineKeyboardRow(
+//			tgbotapi.NewInlineKeyboardButtonData("⚙️ کارمزد لغو سفارش", "admset_cancelfee"),
+//			tgbotapi.NewInlineKeyboardButtonData("⚙️ کارمزد انتقال گروه", "admset_transferfee"),
+//		),
+//		tgbotapi.NewInlineKeyboardRow(
+//			tgbotapi.NewInlineKeyboardButtonData("⚙️ نرخ تبدیل: ۱ امتیاز = ؟ تومان", "admset_ratetoman"),
+//		),
+//		tgbotapi.NewInlineKeyboardRow(
+//			tgbotapi.NewInlineKeyboardButtonData("⚙️ نرخ تبدیل: ؟ امتیاز = ۱ استارز", "admset_ratestar"),
+//		),
+//		tgbotapi.NewInlineKeyboardRow(
+//			tgbotapi.NewInlineKeyboardButtonData("⚙️ پاداش دعوت از غیرفعال‌ها", "admset_inactivebonus"),
+//		),
+//	)
+//}
+//
+//// BuildAdminServicesMenu منوی مدیریت خدمات
+//func (kb *KeyboardBuilder) BuildAdminServicesMenu() tgbotapi.InlineKeyboardMarkup {
+//	return tgbotapi.NewInlineKeyboardMarkup(
+//		tgbotapi.NewInlineKeyboardRow(
+//			tgbotapi.NewInlineKeyboardButtonData("➕ افزودن دسته‌بندی اصلی", "admsrv_addcat"),
+//		),
+//		tgbotapi.NewInlineKeyboardRow(
+//			tgbotapi.NewInlineKeyboardButtonData("➕ افزودن سرویس به دسته‌ها", "admsrv_addsrv"),
+//		),
+//	)
+//}
 
 // BuildAdminPricesMenu منوی مدیریت قیمت‌ها
 func (kb *KeyboardBuilder) BuildAdminPricesMenu() tgbotapi.InlineKeyboardMarkup {
@@ -799,4 +799,88 @@ func (kb *KeyboardBuilder) BuildAdminOrderManageMenu(orderID uint) tgbotapi.Inli
 			tgbotapi.NewInlineKeyboardButtonData("❌ لغو و عودت وجه", "admord_cancel_"+idStr),
 		),
 	)
+}
+
+// BuildAdminUserActionMenu منوی عملیات دستی ادمین روی موجودی سه‌گانه و رفرال کاربر
+func (kb *KeyboardBuilder) BuildAdminUserActionMenu(userID uint) tgbotapi.InlineKeyboardMarkup {
+	idStr := fmt.Sprintf("%d", userID)
+	return tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("➕ افزایش تومان", "admuser_addtoman_"+idStr),
+			tgbotapi.NewInlineKeyboardButtonData("➖ کسر تومان", "admuser_subtoman_"+idStr),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("➕ افزایش امتیاز", "admuser_addpoint_"+idStr),
+			tgbotapi.NewInlineKeyboardButtonData("➖ کسر امتیاز", "admuser_subpoint_"+idStr),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("➕ افزایش استارز ⭐", "admuser_addstars_"+idStr),
+			tgbotapi.NewInlineKeyboardButtonData("➖ کسر استارز ⭐", "admuser_substars_"+idStr),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("📊 نمایش رفرال‌های کاربر", "admuser_refs_"+idStr),
+		),
+	)
+}
+
+// BuildAdminSettingsMenu منوی جامع تنظیمات مالی، کانال‌ها، کارت بانکی و پشتیبانی
+func (kb *KeyboardBuilder) BuildAdminSettingsMenu() tgbotapi.InlineKeyboardMarkup {
+	return tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("⚙️ کارمزد لغو سفارش", "admset_cancelfee"),
+			tgbotapi.NewInlineKeyboardButtonData("⚙️ کارمزد انتقال", "admset_transferfee"),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("💵 نرخ: ۱ امتیاز = ؟ تومان", "admset_ratetoman"),
+			tgbotapi.NewInlineKeyboardButtonData("⭐ نرخ: ؟ امتیاز = ۱ استارز", "admset_ratestar"),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("🎁 پاداش پیش‌فرض تسک", "admset_taskreward"),
+			tgbotapi.NewInlineKeyboardButtonData("⚖️ جریمه پیش‌فرض تسک", "admset_taskpenalty"),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("♻️ پاداش دعوت غیرفعال‌ها", "admset_inactivebonus"),
+			tgbotapi.NewInlineKeyboardButtonData("💳 تنظیم کارت بانکی", "admset_cardinfo"),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("📢 آیدی کانال گزارش", "admset_reportchan"),
+			tgbotapi.NewInlineKeyboardButtonData("🛒 آیدی کانال سفارشات", "admset_orderchan"),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("🏆 آیدی کانال برندگان", "admset_winnerchan"),
+			tgbotapi.NewInlineKeyboardButtonData("🎧 لینک گروه پشتیبانی", "admset_supportlink"),
+		),
+	)
+}
+
+// BuildAdminServicesMenu منوی مدیریت دسته‌ها، زیردسته‌ها و سرویس‌های فروشگاه
+func (kb *KeyboardBuilder) BuildAdminServicesMenu() tgbotapi.InlineKeyboardMarkup {
+	return tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("➕ افزودن دسته اصلی / زیردسته", "admsrv_addcat"),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("➕ افزودن سرویس به دسته‌ها", "admsrv_addsrv"),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("📋 مشاهده لیست دسته‌ها و آیدی‌ها", "admsrv_listcats"),
+		),
+	)
+}
+
+// BuildAdminWithdrawsListMenu منوی لیست درخواست‌های برداشت در انتظار تایید
+func (kb *KeyboardBuilder) BuildAdminWithdrawsListMenu(withdrawals []domain.Withdrawal) tgbotapi.InlineKeyboardMarkup {
+	var rows [][]tgbotapi.InlineKeyboardButton
+	for _, w := range withdrawals {
+		btnText := fmt.Sprintf("💳 برداشت #%d | %.0f (%s)", w.ID, w.Amount, w.Currency)
+		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData(btnText, fmt.Sprintf("admin_wdview_%d", w.ID)),
+		))
+	}
+	if len(withdrawals) == 0 {
+		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("✅ هیچ درخواست برداشت معلقی وجود ندارد", "ignore"),
+		))
+	}
+	return tgbotapi.NewInlineKeyboardMarkup(rows...)
 }

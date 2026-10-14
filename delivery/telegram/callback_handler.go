@@ -410,10 +410,23 @@ func (h *PollingHandler) HandleCallback(tenant *domain.Tenant, update tgbotapi.U
 			h.SafeBot.SafeAnswerCallback(callback.ID, "⏳ سیستم پرداخت استارز تلگرام به زودی متصل می‌شود.", true)
 			// ارسال Invoice اختصاصی تلگرام (SendInvoice) برای استارز
 
+		//case "card":
+		//	_ = h.UserRepo.UpdateUserState(tenant.ID, user.ID, domain.StateWaitPaymentReceipt)
+		//	// شماره کارت را ادمین می‌تواند در آینده از طریق پنل در دیتابیس ذخیره کند، فعلاً هاردکد موقت نمایشی:
+		//	cardMsg := fmt.Sprintf("💳 لطفاً مبلغ %.0f تومان را به شماره کارت زیر واریز کنید:\n\n`1234-5678-9012-3456`\nبه نام: مدیریت\n\n📸 سپس عکس رسید پرداخت را همینجا ارسال کنید:", order.TotalAmount)
+		//	h.SafeBot.SafeEditText(chatID, messageID, cardMsg, nil)
+		//}
 		case "card":
 			_ = h.UserRepo.UpdateUserState(tenant.ID, user.ID, domain.StateWaitPaymentReceipt)
-			// شماره کارت را ادمین می‌تواند در آینده از طریق پنل در دیتابیس ذخیره کند، فعلاً هاردکد موقت نمایشی:
-			cardMsg := fmt.Sprintf("💳 لطفاً مبلغ %.0f تومان را به شماره کارت زیر واریز کنید:\n\n`1234-5678-9012-3456`\nبه نام: مدیریت\n\n📸 سپس عکس رسید پرداخت را همینجا ارسال کنید:", order.TotalAmount)
+			cardNum := tenant.CardNumber
+			if cardNum == "" {
+				cardNum = "شماره کارتی توسط مدیریت ثبت نشده است"
+			}
+			cardHolder := tenant.CardHolder
+			if cardHolder == "" {
+				cardHolder = "مدیریت"
+			}
+			cardMsg := fmt.Sprintf("💳 لطفاً مبلغ **%.0f تومان** را به شماره کارت زیر واریز کنید:\n\n`%s`\n👤 به نام: **%s**\n\n📸 سپس عکس رسید پرداخت را همینجا ارسال کنید:", order.TotalAmount, cardNum, cardHolder)
 			h.SafeBot.SafeEditText(chatID, messageID, cardMsg, nil)
 		}
 
@@ -1468,12 +1481,117 @@ func (h *PollingHandler) HandleCallback(tenant *domain.Tenant, update tgbotapi.U
 		//	}
 		//	return
 
+		//case action == "settings":
+		//	if isSuper {
+		//		markup := h.KeyboardBuilder.BuildAdminSettingsMenu()
+		//		msgText := fmt.Sprintf("⚙️ *تنظیمات مالی سیستم*\n\nدرصد کارمزد لغو: %.1f%%\nدرصد کارمزد انتقال گروه: %.1f%%\nپاداش بازگشت غیرفعال: %.0f\nنرخ تبدیل به تومان (۱ امتیاز =): %.0f\nنرخ تبدیل به استارز (؟ امتیاز = ۱ استارز): %.0f\n\nجهت ویرایش روی گزینه مورد نظر کلیک کنید:",
+		//			tenant.CancelFeePercent, tenant.TransferFeePercent, tenant.InactiveBonusAmount, tenant.PointToTomanRate, tenant.PointToStarRate)
+		//		h.SafeBot.SafeEditText(chatID, messageID, msgText, &markup)
+		//	}
+		//	return
+
 		case action == "settings":
 			if isSuper {
 				markup := h.KeyboardBuilder.BuildAdminSettingsMenu()
-				msgText := fmt.Sprintf("⚙️ *تنظیمات مالی سیستم*\n\nدرصد کارمزد لغو: %.1f%%\nدرصد کارمزد انتقال گروه: %.1f%%\nپاداش بازگشت غیرفعال: %.0f\nنرخ تبدیل به تومان (۱ امتیاز =): %.0f\nنرخ تبدیل به استارز (؟ امتیاز = ۱ استارز): %.0f\n\nجهت ویرایش روی گزینه مورد نظر کلیک کنید:",
-					tenant.CancelFeePercent, tenant.TransferFeePercent, tenant.InactiveBonusAmount, tenant.PointToTomanRate, tenant.PointToStarRate)
+				msgText := fmt.Sprintf("⚙️ *تنظیمات جامع ربات کارفرما*\n\n"+
+					"💸 کارمزد لغو سفارش: `%.1f%%`\n"+
+					"🔄 کارمزد انتقال: `%.1f%%`\n"+
+					"💵 نرخ تبدیل تومان (۱ امتیاز): `%.0f تومان`\n"+
+					"⭐ نرخ تبدیل استارز (۱ استارز): `%.0f امتیاز`\n"+
+					"🎁 پاداش پیش‌فرض تسک: `%.0f امتیاز`\n"+
+					"⚖️ جریمه پیش‌فرض تسک: `%.0f امتیاز`\n"+
+					"♻️ پاداش دعوت غیرفعال‌ها: `%.0f`\n"+
+					"💳 کارت بانکی: `%s` (%s)\n"+
+					"📢 کانال گزارش: `%s`\n"+
+					"🛒 کانال سفارشات: `%s`\n"+
+					"🏆 کانال برندگان: `%s`\n"+
+					"🎧 لینک پشتیبانی: `%s`\n\n"+
+					"👇 جهت ویرایش هر مورد روی دکمه مربوطه کلیک کنید:",
+					tenant.CancelFeePercent, tenant.TransferFeePercent,
+					tenant.PointToTomanRate, tenant.PointToStarRate,
+					tenant.DefaultTaskReward, tenant.DefaultTaskPenalty,
+					tenant.InactiveBonusAmount,
+					tenant.CardNumber, tenant.CardHolder,
+					tenant.ReportChannelID, tenant.OrderChannelID, tenant.WinnerChannelID,
+					tenant.SupportGroupLink)
 				h.SafeBot.SafeEditText(chatID, messageID, msgText, &markup)
+			}
+			return
+
+		case action == "withdraws":
+			if isSuper || isAdmin {
+				withdrawals, _ := h.WithdrawalRepo.GetPendingWithdrawals(tenant.ID)
+				markup := h.KeyboardBuilder.BuildAdminWithdrawsListMenu(withdrawals)
+				h.SafeBot.SafeEditText(chatID, messageID, "💳 *درخواست‌های برداشت در انتظار بررسی*\n\nبرای مشاهده جزئیات و تأیید/رد هر درخواست روی آن کلیک کنید:", &markup)
+			}
+			return
+
+		case strings.HasPrefix(action, "wdview_"):
+			if isSuper || isAdmin {
+				wdID, _ := strconv.Atoi(strings.TrimPrefix(action, "wdview_"))
+				wd, err := h.WithdrawalRepo.GetByID(tenant.ID, uint(wdID))
+				if err != nil || wd == nil || wd.Status != "PENDING" {
+					h.SafeBot.SafeAnswerCallback(callback.ID, "❌ این درخواست قبلاً بررسی شده است.", true)
+					return
+				}
+				wUser, _ := h.UserRepo.GetUserByID(tenant.ID, wd.UserID)
+				uName := "نامشخص"
+				var uTelID int64
+				if wUser != nil {
+					uName = wUser.FirstName
+					uTelID = wUser.TelegramID
+				}
+				msgText := fmt.Sprintf("💳 *جزئیات درخواست برداشت #%d*\n\n👤 کاربر: [%s](tg://user?id=%d) (`%d`)\n🎁 نوع: `%s`\n🔢 مقدار: `%.0f`\n🔗 مقصد (لینک/آیدی):\n`%s`\n\nلطفاً عملیات را انتخاب کنید:",
+					wd.ID, uName, uTelID, uTelID, wd.Currency, wd.Amount, wd.WalletAddress)
+				markup := h.KeyboardBuilder.BuildAdminWithdrawMenu(wd.ID)
+				h.SafeBot.SafeEditText(chatID, messageID, msgText, &markup)
+			}
+			return
+
+		case action == "transactions":
+			if isSuper || isAdmin {
+				txs, _ := h.TxRepo.GetTenantRecentTransactions(tenant.ID, 15)
+				var sb strings.Builder
+				sb.WriteString("💼 *۱۵ تراکنش اخیر سیستم*\n\n")
+				if len(txs) == 0 {
+					sb.WriteString("هیچ تراکنشی در سیستم ثبت نشده است.")
+				} else {
+					for i, tx := range txs {
+						sign := "+"
+						if tx.Amount < 0 {
+							sign = ""
+						}
+						sb.WriteString(fmt.Sprintf("%d. کاربر `#%d` | %s | `%s%.0f %s`\n", i+1, tx.UserID, tx.Type, sign, tx.Amount, tx.Currency))
+					}
+				}
+				h.SafeBot.SafeEditText(chatID, messageID, sb.String(), nil)
+			}
+			return
+
+		case action == "referrals":
+			if isSuper || isAdmin {
+				stats, _ := h.RefRepo.GetTenantTotalReferralStats(tenant.ID)
+				topRefs, _ := h.RefRepo.GetLeagueRankings(tenant.ID)
+
+				var sb strings.Builder
+				sb.WriteString("👥 *آمار جامع رفرال‌های ربات*\n\n")
+				if stats != nil {
+					sb.WriteString(fmt.Sprintf("📊 کل دعوت‌ها: %d (تأیید شده: %d)\n", stats.TotalInvited, stats.Approved))
+					sb.WriteString(fmt.Sprintf("🏆 لینک لیگ: %d نفر\n🎰 لینک قرعه‌کشی: %d نفر\n⭐ لینک استارز: %d نفر\n🎁 لینک گیفت: %d نفر\n\n",
+						stats.LeagueTotal, stats.DrawTotal, stats.StarsTotal, stats.GiftTotal))
+				}
+				sb.WriteString("🏅 *برترین دعوت‌کنندگان (لیگ):*\n")
+				if len(topRefs) == 0 {
+					sb.WriteString("هنوز دعوت تأییدشده‌ای ثبت نشده است.")
+				} else {
+					for i, r := range topRefs {
+						if i >= 10 {
+							break
+						}
+						sb.WriteString(fmt.Sprintf("%d. %s — `%d دعوت`\n", i+1, r.FirstName, r.InviteCount))
+					}
+				}
+				h.SafeBot.SafeEditText(chatID, messageID, sb.String(), nil)
 			}
 			return
 
@@ -1597,21 +1715,76 @@ func (h *PollingHandler) HandleCallback(tenant *domain.Tenant, update tgbotapi.U
 			return
 		}
 
+		//if data == "admsrv_addcat" {
+		//	_ = h.UserRepo.UpdateUserState(tenant.ID, user.ID, domain.StateAdminWaitCategoryName)
+		//	h.SafeBot.SafeAnswerCallback(callback.ID, "لطفاً نام دسته‌بندی را ارسال کنید.", false)
+		//	_, _ = h.SafeBot.Bot.Send(tgbotapi.NewMessage(chatID, "📂 لطفاً **نام دسته‌بندی جدید** را ارسال کنید (مثل: ممبر تلگرام):"))
+		//	return
+		//}
+
+		//if data == "admsrv_addsrv" {
+		//	// برای سادگی در این نسخه، فقط از ادمین می‌خواهیم مستقیم اطلاعات را بفرستد
+		//	// (در نسخه پیشرفته‌تر می‌توان ابتدا دسته‌ها را لیست کرد)
+		//	_ = h.UserRepo.UpdateAdminTargets(tenant.ID, user.ID, 0, "", "") // ریسِت تارگت‌ها
+		//	_ = h.UserRepo.UpdateUserState(tenant.ID, user.ID, domain.StateAdminWaitServiceName)
+		//	h.SafeBot.SafeAnswerCallback(callback.ID, "منتظر دریافت اطلاعات...", false)
+		//
+		//	msg := tgbotapi.NewMessage(chatID, "➕ لطفاً **نام سرویس جدید** را ارسال کنید:")
+		//	_, _ = h.SafeBot.Bot.Send(msg)
+		//	return
+		//}
+
+		if data == "admsrv_listcats" {
+			cats, _ := h.CategoryRepo.GetAllCategories(tenant.ID)
+			var sb strings.Builder
+			sb.WriteString("📋 *لیست دسته‌بندی‌های موجود:*\n\n")
+			if len(cats) == 0 {
+				sb.WriteString("هنوز هیچ دسته‌بندی ثبت نشده است.")
+			} else {
+				for _, c := range cats {
+					parentInfo := "دسته اصلی"
+					if c.ParentID != nil {
+						parentInfo = fmt.Sprintf("زیردستهِ #%d", *c.ParentID)
+					}
+					sb.WriteString(fmt.Sprintf("🔹 آیدی: `%d` | نام: **%s** (%s)\n", c.ID, c.NameKey, parentInfo))
+				}
+			}
+			h.SafeBot.SafeAnswerCallback(callback.ID, "لیست دسته‌ها", false)
+			msg := tgbotapi.NewMessage(chatID, sb.String())
+			msg.ParseMode = "Markdown"
+			_, _ = h.SafeBot.Bot.Send(msg)
+			return
+		}
+
 		if data == "admsrv_addcat" {
 			_ = h.UserRepo.UpdateUserState(tenant.ID, user.ID, domain.StateAdminWaitCategoryName)
-			h.SafeBot.SafeAnswerCallback(callback.ID, "لطفاً نام دسته‌بندی را ارسال کنید.", false)
-			_, _ = h.SafeBot.Bot.Send(tgbotapi.NewMessage(chatID, "📂 لطفاً **نام دسته‌بندی جدید** را ارسال کنید (مثل: ممبر تلگرام):"))
+			h.SafeBot.SafeAnswerCallback(callback.ID, "افزودن دسته‌بندی", false)
+			guide := "📂 *افزودن دسته‌بندی یا زیردسته*\n\n" +
+				"• برای ساخت **دسته اصلی**، فقط نام آن را بفرستید:\n`ممبر تلگرام`\n\n" +
+				"• برای ساخت **زیردسته**، ابتدا آیدی دسته مادر و سپس نام زیردسته را با `|` بفرستید:\n`1 | ممبر ایرانی`"
+			msg := tgbotapi.NewMessage(chatID, guide)
+			msg.ParseMode = "Markdown"
+			_, _ = h.SafeBot.Bot.Send(msg)
 			return
 		}
 
 		if data == "admsrv_addsrv" {
-			// برای سادگی در این نسخه، فقط از ادمین می‌خواهیم مستقیم اطلاعات را بفرستد
-			// (در نسخه پیشرفته‌تر می‌توان ابتدا دسته‌ها را لیست کرد)
-			_ = h.UserRepo.UpdateAdminTargets(tenant.ID, user.ID, 0, "", "") // ریسِت تارگت‌ها
+			_ = h.UserRepo.UpdateAdminTargets(tenant.ID, user.ID, 0, "", "")
 			_ = h.UserRepo.UpdateUserState(tenant.ID, user.ID, domain.StateAdminWaitServiceName)
-			h.SafeBot.SafeAnswerCallback(callback.ID, "منتظر دریافت اطلاعات...", false)
+			h.SafeBot.SafeAnswerCallback(callback.ID, "افزودن سرویس جدید", false)
 
-			msg := tgbotapi.NewMessage(chatID, "➕ لطفاً **نام سرویس جدید** را ارسال کنید:")
+			cats, _ := h.CategoryRepo.GetAllCategories(tenant.ID)
+			var catList strings.Builder
+			for _, c := range cats {
+				catList.WriteString(fmt.Sprintf("• کد `%d`: %s\n", c.ID, c.NameKey))
+			}
+
+			guide := fmt.Sprintf("➕ *افزودن سرویس جدید به فروشگاه*\n\n📂 *دسته‌های موجود:*\n%s\n"+
+				"لطفاً اطلاعات سرویس را با جداکننده `|` به فرمت زیر ارسال کنید:\n"+
+				"`کد دسته | نام سرویس | قیمت دلاری | درصد سود`\n\n"+
+				"💡 *مثال:*\n`1 | ممبر واقعی گارانتی‌دار | 0.5 | 25`", catList.String())
+			msg := tgbotapi.NewMessage(chatID, guide)
+			msg.ParseMode = "Markdown"
 			_, _ = h.SafeBot.Bot.Send(msg)
 			return
 		}
@@ -1651,18 +1824,46 @@ func (h *PollingHandler) HandleCallback(tenant *domain.Tenant, update tgbotapi.U
 	}
 
 	// مدیریت کلیک‌های تنظیمات سیستمی (ادمین)
+	//if strings.HasPrefix(data, "admset_") {
+	//	settingType := strings.TrimPrefix(data, "admset_")
+	//	user, _ := h.UserRepo.GetUserByTelegramID(tenant.ID, chatID)
+	//	if !botHandlerTemp.IsSuperAdmin(chatID) { // 👈 فیکس شد
+	//		return
+	//	}
+	//
+	//	_ = h.UserRepo.UpdateAdminTargets(tenant.ID, user.ID, 0, settingType, "")
+	//	_ = h.UserRepo.UpdateUserState(tenant.ID, user.ID, domain.StateAdminWaitSettingValue)
+	//
+	//	h.SafeBot.SafeAnswerCallback(callback.ID, "لطفاً مقدار جدید را ارسال کنید.", false)
+	//	_, _ = h.SafeBot.Bot.Send(tgbotapi.NewMessage(chatID, "⚙️ لطفاً مقدار جدید (عدد یا درصد) را پیام کنید:"))
+	//	return
+	//}
+
+	// مدیریت کلیک‌های تنظیمات سیستمی (ادمین)
 	if strings.HasPrefix(data, "admset_") {
 		settingType := strings.TrimPrefix(data, "admset_")
-		user, _ := h.UserRepo.GetUserByTelegramID(tenant.ID, chatID)
-		if !botHandlerTemp.IsSuperAdmin(chatID) { // 👈 فیکس شد
+		user, _ := h.UserRepo.GetUserByTelegramID(tenant.ID, userID)
+		if !botHandlerTemp.IsSuperAdmin(userID) {
 			return
 		}
 
 		_ = h.UserRepo.UpdateAdminTargets(tenant.ID, user.ID, 0, settingType, "")
 		_ = h.UserRepo.UpdateUserState(tenant.ID, user.ID, domain.StateAdminWaitSettingValue)
 
-		h.SafeBot.SafeAnswerCallback(callback.ID, "لطفاً مقدار جدید را ارسال کنید.", false)
-		_, _ = h.SafeBot.Bot.Send(tgbotapi.NewMessage(chatID, "⚙️ لطفاً مقدار جدید (عدد یا درصد) را پیام کنید:"))
+		prompt := "⚙️ لطفاً مقدار عددی جدید را ارسال کنید:"
+		switch settingType {
+		case "cardinfo":
+			prompt = "💳 لطفاً **شماره کارت** و **نام صاحب کارت** را با جداکننده `|` ارسال کنید:\nمثال: `6037-9911-1234-5678 | علی محمدی`"
+		case "reportchan", "orderchan", "winnerchan":
+			prompt = "📢 لطفاً **آیدی عددی کانال** (شروع با `-100`) را ارسال کنید (ربات باید در کانال ادمین باشد):"
+		case "supportlink":
+			prompt = "🎧 لطفاً **لینک گروه پشتیبانی** یا آیدی پشتیبان (مثال: `https://t.me/my_support`) را ارسال کنید:"
+		}
+
+		h.SafeBot.SafeAnswerCallback(callback.ID, "ارسال مقدار جدید", false)
+		msg := tgbotapi.NewMessage(chatID, prompt)
+		msg.ParseMode = "Markdown"
+		_, _ = h.SafeBot.Bot.Send(msg)
 		return
 	}
 

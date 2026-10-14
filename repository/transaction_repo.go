@@ -30,3 +30,13 @@ func (r *TransactionRepository) GetRecentTransactions(tenantID uint, userID uint
 
 	return transactions, err
 }
+
+// GetTenantRecentTransactions دریافت آخرین تراکنش‌های کل ربات برای پنل مدیریت
+func (r *TransactionRepository) GetTenantRecentTransactions(tenantID uint, limit int) ([]domain.Transaction, error) {
+	var transactions []domain.Transaction
+	err := r.db.Where("tenant_id = ?", tenantID).
+		Order("created_at desc").
+		Limit(limit).
+		Find(&transactions).Error
+	return transactions, err
+}

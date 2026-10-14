@@ -115,3 +115,15 @@ func (r *ReferralRepository) ResetLeagueReferrals(tenantID uint) error {
 		Where("tenant_id = ? AND referral_type = ? AND status = ?", tenantID, "league", "APPROVED").
 		Update("status", "ARCHIVED").Error
 }
+
+// GetTenantTotalReferralStats دریافت آمار کلی رفرال‌های ثبت شده در کل ربات برای پنل ادمین
+func (r *ReferralRepository) GetTenantTotalReferralStats(tenantID uint) (*ReferralStats, error) {
+	stats := &ReferralStats{}
+	r.db.Model(&domain.Referral{}).Where("tenant_id = ?", tenantID).Count(&stats.TotalInvited)
+	r.db.Model(&domain.Referral{}).Where("tenant_id = ? AND status IN ('APPROVED', 'ARCHIVED')", tenantID).Count(&stats.Approved)
+	r.db.Model(&domain.Referral{}).Where("tenant_id = ? AND status IN ('APPROVED', 'ARCHIVED') AND referral_type = ?", tenantID, "league").Count(&stats.LeagueTotal)
+	r.db.Model(&domain.Referral{}).Where("tenant_id = ? AND status = ? AND referral_type IN ('draw', 'lottery')", tenantID, "APPROVED").Count(&stats.DrawTotal)
+	r.db.Model(&domain.Referral{}).Where("tenant_id = ? AND status = ? AND referral_type = ?", tenantID, "APPROVED", "stars").Count(&stats.StarsTotal)
+	r.db.Model(&domain.Referral{}).Where("tenant_id = ? AND status = ? AND referral_type = ?", tenantID, "APPROVED", "gift").Count(&stats.GiftTotal)
+	return stats, nil
+}
