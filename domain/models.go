@@ -150,12 +150,11 @@ type User struct {
 
 // Referral (سیستم رفرال‌های ۴ گانه)
 type Referral struct {
-	ID           uint   `gorm:"primaryKey"`
-	TenantID     uint   `gorm:"index"`
-	ReferrerID   uint   `gorm:"index"` // شناسه کاربری که دعوت کرده است (معرف)
-	ReferredID   uint   `gorm:"index"` // شناسه کاربر دعوت شده (زیرمجموعه)
-	ReferralType string // نوع لینک: استارز، گیفت، لیگ، یا قرعه‌کشی[cite: 1]
-	// با استفاده از تگ‌های gorm باید یکتایی (Unique) روی ترکیب ReferrerID, ReferredID و ReferralType ایجاد شود تا از تداخل جلوگیری شود[cite: 1]
+	ID             uint   `gorm:"primaryKey"`
+	TenantID       uint   `gorm:"index"`
+	ReferrerID     uint   `gorm:"uniqueIndex:idx_unique_ref;index"` // شناسه کاربری که دعوت کرده است (معرف)
+	ReferredID     uint   `gorm:"uniqueIndex:idx_unique_ref;index"` // شناسه کاربر دعوت شده (زیرمجموعه)
+	ReferralType   string `gorm:"uniqueIndex:idx_unique_ref"`       // نوع لینک: استارز، گیفت، لیگ، یا قرعه‌کشی
 	IsReactivation bool   `gorm:"default:false"`
 	Status         string `gorm:"default:'PENDING'"` // مقادیر: PENDING, APPROVED, REJECTED
 	CreatedAt      time.Time

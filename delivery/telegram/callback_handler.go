@@ -18,8 +18,6 @@ func (h *PollingHandler) HandleCallback(tenant *domain.Tenant, update tgbotapi.U
 	chatID := callback.Message.Chat.ID
 	userID := callback.From.ID
 	messageID := callback.Message.MessageID
-
-	// غیرفعال کردن آیکون ساعت شنی روی دکمه بعد از کلیک
 	h.SafeBot.SafeAnswerCallback(callback.ID, "", false)
 
 	// ساخت موقت BotHandler برای استفاده از متد CheckForceJoin
@@ -926,8 +924,15 @@ func (h *PollingHandler) HandleCallback(tenant *domain.Tenant, update tgbotapi.U
 				h.SafeBot.SafeAnswerCallback(callback.ID, "❌ درخواست لغو قبلاً بررسی یا اعمال شده است.", true)
 				return
 			}
-			// بازگردانی مبلغ با کسر ۱۰٪ کارمزد
-			refundAmount := order.TotalAmount * 0.90
+			//// بازگردانی مبلغ با کسر ۱۰٪ کارمزد
+			//refundAmount := order.TotalAmount * 0.90
+
+			// بازگردانی مبلغ با کسر درصد کارمزد لغو تعیین شده توسط ادمین (پیش‌فرض ۱۰٪)
+			cancelFee := tenant.CancelFeePercent
+			if cancelFee <= 0 {
+				cancelFee = 10.0
+			}
+			refundAmount := order.TotalAmount * (1.0 - (cancelFee / 100.0))
 
 			if order.PaymentMethod == "WALLET_TOMAN" || order.PaymentMethod == "CARD" || order.PaymentMethod == "GATEWAY" {
 				user.TomanBalance += refundAmount
@@ -1650,10 +1655,20 @@ func (h *PollingHandler) HandleCallback(tenant *domain.Tenant, update tgbotapi.U
 				_ = h.WithdrawalRepo.UpdateStatus(withdrawal)
 
 				// عودت مبلغ به کاربر
+				//if userUser != nil {
+				//	refundCost := withdrawal.Amount
+				//	if withdrawal.Currency == "STARS" {
+				//		refundCost = withdrawal.Amount * 3.0
+				//	}
+
 				if userUser != nil {
 					refundCost := withdrawal.Amount
 					if withdrawal.Currency == "STARS" {
-						refundCost = withdrawal.Amount * 3.0
+						rate := tenant.PointToStarRate
+						if rate <= 0 {
+							rate = 3.0
+						}
+						refundCost = withdrawal.Amount * rate
 					}
 					userUser.PointBalance += refundCost
 					_ = h.UserRepo.UpdateBalances(tenant.ID, userUser.ID, userUser.TomanBalance, userUser.PointBalance, userUser.StarsBalance)
@@ -1829,11 +1844,21 @@ func (h *PollingHandler) HandleCallback(tenant *domain.Tenant, update tgbotapi.U
 			return
 		}
 
+		//if admAction == "refs" {
+		//	stats, _ := h.RefRepo.GetReferralStats(tenant.ID, uint(targetID)) // 👈 فیکس شد: استفاده از RefRepo
+		//	h.SafeBot.SafeAnswerCallback(callback.ID, "آمار رفرال کاربر استخراج شد", false)
+		//	msg := tgbotapi.NewMessage(chatID, fmt.Sprintf("📊 *آمار رفرال این کاربر*\n\nلیگ: %d\nقرعه‌کشی: %d\nامتیاز: %d\nکیف‌پول: %d\nغیرفعال‌ها: %d",
+		//		stats.LeagueTotal, stats.DrawTotal, stats.PointTotal, stats.WalletTotal, stats.InactiveUsers))
+		//	msg.ParseMode = "Markdown"
+		//	_, _ = h.SafeBot.Bot.Send(msg)
+		//	return
+		//}
+
 		if admAction == "refs" {
-			stats, _ := h.RefRepo.GetReferralStats(tenant.ID, uint(targetID)) // 👈 فیکس شد: استفاده از RefRepo
+			stats, _ := h.RefRepo.GetReferralStats(tenant.ID, uint(targetID))
 			h.SafeBot.SafeAnswerCallback(callback.ID, "آمار رفرال کاربر استخراج شد", false)
-			msg := tgbotapi.NewMessage(chatID, fmt.Sprintf("📊 *آمار رفرال این کاربر*\n\nلیگ: %d\nقرعه‌کشی: %d\nامتیاز: %d\nکیف‌پول: %d\nغیرفعال‌ها: %d",
-				stats.LeagueTotal, stats.DrawTotal, stats.PointTotal, stats.WalletTotal, stats.InactiveUsers))
+			msg := tgbotapi.NewMessage(chatID, fmt.Sprintf("📊 *آمار رفرال‌های ۴ گانه این کاربر*\n\n🏆 لیگ: %d\n🎰 قرعه‌کشی: %d\n⭐ استارز: %d\n🎁 گیفت: %d\n💤 غیرفعال‌ها: %d",
+				stats.LeagueTotal, stats.DrawTotal, stats.StarsTotal, stats.GiftTotal, stats.InactiveUsers))
 			msg.ParseMode = "Markdown"
 			_, _ = h.SafeBot.Bot.Send(msg)
 			return
