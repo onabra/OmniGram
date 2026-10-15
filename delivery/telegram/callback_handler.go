@@ -87,6 +87,52 @@ func (h *PollingHandler) HandleCallback(tenant *domain.Tenant, update tgbotapi.U
 		return
 	}
 
+	// راهنمای انتقال در گروه (وقتی کاربر روی دکمه شیشه‌ای زیر موجودی کلیک می‌کند)
+	//if data == "group_transfer_help" {
+	//	guide := "آموزش انتقال در گروه:\nجهت انتقال، روی پیام شخص مورد نظر ریپلای کنید و بفرستید:\n\nانتقال [مبلغ] [ارز]\n\nمثال:\nانتقال 50 POINT\nانتقال 1000 TOMAN"
+	//	h.SafeBot.SafeAnswerCallback(callback.ID, guide, true) // true = نمایش به صورت پاپ‌آپ وسط صفحه
+	//	return
+	//}
+
+	// هندل کردن دکمه‌های موجودی در گروه (تغییر وضعیت پیام بدون ارسال پیام جدید)
+	if data == "group_transfer_help" {
+		guide := "👤 <b>آموزش انتقال موجودی در گروه:</b>\n\n<blockquote>جهت انتقال، روی پیام شخص مورد نظر ریپلای کنید و بفرستید:\n\n<code>انتقال [مبلغ] [ارز]</code>\n\n🔹 مثال‌ها:\n<code>انتقال 50 POINT</code>\n<code>انتقال 1000 TOMAN</code></blockquote>"
+
+		markup := tgbotapi.NewInlineKeyboardMarkup(
+			tgbotapi.NewInlineKeyboardRow(
+				tgbotapi.NewInlineKeyboardButtonData("🔙 بازگشت به موجودی", "group_balance_back"),
+			),
+		)
+
+		msg := tgbotapi.NewEditMessageText(chatID, messageID, guide)
+		msg.ParseMode = "HTML"
+		msg.ReplyMarkup = &markup
+		_, _ = h.SafeBot.Bot.Send(msg)
+		return
+	}
+
+	if data == "group_balance_back" {
+		user, err := h.UserRepo.GetUserByTelegramID(tenant.ID, userID)
+		if err != nil || user == nil {
+			return
+		}
+
+		msgText := fmt.Sprintf("👤 <b>موجودی شما</b>\n\n<blockquote>⭐ امتیاز: %.0f\n🌟 معادل استارز: %.0f\n💰 تومان: %.0f</blockquote>",
+			user.PointBalance, user.StarsBalance, user.TomanBalance)
+
+		markup := tgbotapi.NewInlineKeyboardMarkup(
+			tgbotapi.NewInlineKeyboardRow(
+				tgbotapi.NewInlineKeyboardButtonData("💸 انتقال موجودی", "group_transfer_help"),
+			),
+		)
+
+		msg := tgbotapi.NewEditMessageText(chatID, messageID, msgText)
+		msg.ParseMode = "HTML"
+		msg.ReplyMarkup = &markup
+		_, _ = h.SafeBot.Bot.Send(msg)
+		return
+	}
+
 	// قفل کردن سایر دکمه‌های شیشه‌ای در صورت عدم عضویت (به جز ادمین)
 	//if !botHandlerTemp.CheckForceJoin(tenant, chatID) {
 	//	h.SafeBot.SafeAnswerCallback(callback.ID, "🛑 ابتدا در کانال‌های اجباری عضو شوید.", true)

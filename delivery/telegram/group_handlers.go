@@ -17,6 +17,53 @@ func (h *PollingHandler) HandleGroupMessage(tenant *domain.Tenant, message *tgbo
 		text := strings.TrimSpace(message.Text)
 
 		// ۱. نمایش موجودی در گروه
+		//if text == "موجودی" {
+		//	user, err := h.UserRepo.GetUserByTelegramID(tenant.ID, message.From.ID)
+		//	if err != nil || user == nil {
+		//		msg := tgbotapi.NewMessage(message.Chat.ID, "❌ ابتدا ربات را در پی‌وی استارت بزنید.")
+		//		msg.ReplyToMessageID = message.MessageID
+		//		_, _ = h.SafeBot.Bot.Send(msg)
+		//		return
+		//	}
+		//
+		//	msgText := fmt.Sprintf("👤 کاربر: %s\n💰 کیف پول (تومان): %.0f\n🎁 امتیاز رفرال: %.0f\n⭐ استارز: %.0f",
+		//		message.From.FirstName, user.TomanBalance, user.PointBalance, user.StarsBalance)
+		//	msg := tgbotapi.NewMessage(message.Chat.ID, msgText)
+		//	msg.ReplyToMessageID = message.MessageID
+		//	_, _ = h.SafeBot.Bot.Send(msg)
+		//	return
+		//}
+
+		// ۱. نمایش موجودی در گروه
+		//if text == "موجودی" {
+		//	user, err := h.UserRepo.GetUserByTelegramID(tenant.ID, message.From.ID)
+		//	if err != nil || user == nil {
+		//		msg := tgbotapi.NewMessage(message.Chat.ID, "❌ ابتدا ربات را در پی‌وی استارت بزنید.")
+		//		msg.ReplyToMessageID = message.MessageID
+		//		_, _ = h.SafeBot.Bot.Send(msg)
+		//		return
+		//	}
+		//
+		//	// فرمت جدید درخواستی کارفرما با استفاده از تگ‌های HTML برای باکس نقل‌قول (Blockquote)
+		//	msgText := fmt.Sprintf("👤 <b>موجودی شما</b>\n\n<blockquote>⭐ امتیاز: %.0f\n🌟 معادل استارز: %.0f\n💰 تومان: %.0f</blockquote>",
+		//		user.PointBalance, user.StarsBalance, user.TomanBalance)
+		//
+		//	msg := tgbotapi.NewMessage(message.Chat.ID, msgText)
+		//	msg.ParseMode = "HTML"                   // برای پشتیبانی از تگ blockquote
+		//	msg.ReplyToMessageID = message.MessageID // ریپ زدن روی پیام کاربر
+		//
+		//	// ساخت دکمه شیشه‌ای انتقال
+		//	transferMarkup := tgbotapi.NewInlineKeyboardMarkup(
+		//		tgbotapi.NewInlineKeyboardRow(
+		//			tgbotapi.NewInlineKeyboardButtonData("💸 انتقال موجودی", "group_transfer_help"),
+		//		),
+		//	)
+		//	msg.ReplyMarkup = transferMarkup
+		//
+		//	_, _ = h.SafeBot.Bot.Send(msg)
+		//	return
+		//}
+		// ۱. نمایش موجودی در گروه
 		if text == "موجودی" {
 			user, err := h.UserRepo.GetUserByTelegramID(tenant.ID, message.From.ID)
 			if err != nil || user == nil {
@@ -26,10 +73,22 @@ func (h *PollingHandler) HandleGroupMessage(tenant *domain.Tenant, message *tgbo
 				return
 			}
 
-			msgText := fmt.Sprintf("👤 کاربر: %s\n💰 کیف پول (تومان): %.0f\n🎁 امتیاز رفرال: %.0f\n⭐ استارز: %.0f",
-				message.From.FirstName, user.TomanBalance, user.PointBalance, user.StarsBalance)
+			// فرمت جدید درخواستی کارفرما با استفاده از تگ‌های HTML برای باکس نقل‌قول (Blockquote)
+			msgText := fmt.Sprintf("👤 <b>موجودی شما</b>\n\n<blockquote>⭐ امتیاز: %.0f\n🌟 معادل استارز: %.0f\n💰 تومان: %.0f</blockquote>",
+				user.PointBalance, user.StarsBalance, user.TomanBalance)
+
 			msg := tgbotapi.NewMessage(message.Chat.ID, msgText)
-			msg.ReplyToMessageID = message.MessageID
+			msg.ParseMode = "HTML"                   // برای پشتیبانی از تگ blockquote
+			msg.ReplyToMessageID = message.MessageID // ریپ زدن روی پیام کاربر
+
+			// ساخت دکمه شیشه‌ای انتقال
+			transferMarkup := tgbotapi.NewInlineKeyboardMarkup(
+				tgbotapi.NewInlineKeyboardRow(
+					tgbotapi.NewInlineKeyboardButtonData("💸 انتقال موجودی", "group_transfer_help"),
+				),
+			)
+			msg.ReplyMarkup = transferMarkup
+
 			_, _ = h.SafeBot.Bot.Send(msg)
 			return
 		}
