@@ -153,7 +153,7 @@ func (h *PollingHandler) processUpdateWithRecovery(update tgbotapi.Update) {
 		if adminUser != nil && adminUser.State == domain.StateAdminWaitBroadcastMsg {
 			if update.Message.Text == "بازگشت به منوی اصلی" {
 				_ = botHandler.UserRepo.UpdateUserState(tenant.ID, adminUser.ID, domain.StateNormal)
-				botHandler.HandleMessage(tenant, chatID, update.Message.Text, lang)
+				botHandler.HandleMessage(tenant, chatID, update.Message.From.FirstName, update.Message.Text, lang)
 				return
 			}
 
