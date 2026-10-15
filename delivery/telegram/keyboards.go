@@ -530,15 +530,33 @@ func (kb *KeyboardBuilder) BuildWithdrawTypeMenu() tgbotapi.InlineKeyboardMarkup
 }
 
 // BuildWithdrawStarsMenu انتخاب تعداد استارز (۱ تا ۹)
-func (kb *KeyboardBuilder) BuildWithdrawStarsMenu() tgbotapi.InlineKeyboardMarkup {
+//func (kb *KeyboardBuilder) BuildWithdrawStarsMenu() tgbotapi.InlineKeyboardMarkup {
+//	var rows [][]tgbotapi.InlineKeyboardButton
+//	var currentRow []tgbotapi.InlineKeyboardButton
+//
+//	for i := 1; i <= 9; i++ {
+//		btnText := fmt.Sprintf("%d ⭐", i)
+//		btnData := fmt.Sprintf("withdraw_do_STARS_%d", i)
+//		currentRow = append(currentRow, tgbotapi.NewInlineKeyboardButtonData(btnText, btnData))
+//		if len(currentRow) == 3 || i == 9 {
+//			rows = append(rows, currentRow)
+//			currentRow = nil
+//		}
+//	}
+//	return tgbotapi.NewInlineKeyboardMarkup(rows...)
+//}
+
+// BuildWithdrawStarsMenu انتخاب تعداد استارز بر اساس حداقل و حداکثر تنظیم شده
+func (kb *KeyboardBuilder) BuildWithdrawStarsMenu(min, max int) tgbotapi.InlineKeyboardMarkup {
 	var rows [][]tgbotapi.InlineKeyboardButton
 	var currentRow []tgbotapi.InlineKeyboardButton
 
-	for i := 1; i <= 9; i++ {
+	for i := min; i <= max; i++ {
 		btnText := fmt.Sprintf("%d ⭐", i)
 		btnData := fmt.Sprintf("withdraw_do_STARS_%d", i)
 		currentRow = append(currentRow, tgbotapi.NewInlineKeyboardButtonData(btnText, btnData))
-		if len(currentRow) == 3 || i == 9 {
+		// هر ردیف ۳ دکمه
+		if len(currentRow) == 3 || i == max {
 			rows = append(rows, currentRow)
 			currentRow = nil
 		}
@@ -862,6 +880,14 @@ func (kb *KeyboardBuilder) BuildAdminSettingsMenu() tgbotapi.InlineKeyboardMarku
 			tgbotapi.NewInlineKeyboardButtonData("⚙️ کارمزد لغو سفارش", "admset_cancelfee"),
 			tgbotapi.NewInlineKeyboardButtonData("⚙️ کارمزد انتقال", "admset_transferfee"),
 		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("⭐ حداقل برداشت استارز", "admset_minstars"),
+			tgbotapi.NewInlineKeyboardButtonData("⭐ حداکثر برداشت استارز", "admset_maxstars"),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("🎁 پاداش پیش‌ فرض تسک", "admset_taskreward"),
+		),
+
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("💵 نرخ: ۱ امتیاز = ؟ تومان", "admset_ratetoman"),
 			tgbotapi.NewInlineKeyboardButtonData("⭐ نرخ: ؟ امتیاز = ۱ استارز", "admset_ratestar"),

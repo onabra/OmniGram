@@ -50,6 +50,12 @@ const (
 	StateAdminWaitLeagueRules     UserState = "ADMIN_WAIT_LEAGUE_RULES"   // ادمین در انتظار ارسال متن قوانین لیگ
 
 	StateAdminWaitNewGiftData UserState = "ADMIN_WAIT_NEW_GIFT_DATA" // ادمین در انتظار ارسال اطلاعات گیفت جدید
+
+	// وضعیت‌های جدید برای ساخت مرحله‌به‌مرحله تسک
+	StateAdminWaitTaskTitle  UserState = "ADMIN_WAIT_TASK_TITLE"
+	StateAdminWaitTaskLink   UserState = "ADMIN_WAIT_TASK_LINK"
+	StateAdminWaitTaskType   UserState = "ADMIN_WAIT_TASK_TYPE"
+	StateAdminWaitTaskReward UserState = "ADMIN_WAIT_TASK_REWARD"
 )
 
 // Tenant (موجودیت اصلی برای معماری SaaS)
@@ -76,6 +82,8 @@ type Tenant struct {
 	DefaultTaskReward  float64 `gorm:"default:10"` // پاداش پیش‌فرض هر تسک (امتیاز)
 	DefaultTaskPenalty float64 `gorm:"default:50"` // جریمه پیش‌فرض لفت دادن از تسک
 
+	MinWithdrawStars int `gorm:"default:1"`
+	MaxWithdrawStars int `gorm:"default:9"`
 }
 
 // Category (مثلاً ممبر، ویو، بوست)

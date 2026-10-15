@@ -1015,9 +1015,24 @@ func (h *PollingHandler) HandleCallback(tenant *domain.Tenant, update tgbotapi.U
 			return
 		}
 
+		//if data == "withdraw_select_stars" {
+		//	markup := h.KeyboardBuilder.BuildWithdrawStarsMenu()
+		//	h.SafeBot.SafeEditText(chatID, messageID, "⭐ لطفاً تعداد استارز درخواستی (از ۱ تا ۹) را انتخاب کنید:\n\n*(هر ۱ استارز = ۳ امتیاز)*", &markup)
+		//	return
+		//}
+
 		if data == "withdraw_select_stars" {
-			markup := h.KeyboardBuilder.BuildWithdrawStarsMenu()
-			h.SafeBot.SafeEditText(chatID, messageID, "⭐ لطفاً تعداد استارز درخواستی (از ۱ تا ۹) را انتخاب کنید:\n\n*(هر ۱ استارز = ۳ امتیاز)*", &markup)
+			min := tenant.MinWithdrawStars
+			max := tenant.MaxWithdrawStars
+			if min <= 0 {
+				min = 1
+			}
+			if max <= 0 {
+				max = 9
+			}
+
+			markup := h.KeyboardBuilder.BuildWithdrawStarsMenu(min, max)
+			h.SafeBot.SafeEditText(chatID, messageID, fmt.Sprintf("⭐ لطفاً تعداد استارز درخواستی (از %d تا %d) را انتخاب کنید:\n\n*(هر ۱ استارز = %.0f امتیاز)*", min, max, tenant.PointToStarRate), &markup)
 			return
 		}
 
@@ -2003,24 +2018,6 @@ func (h *PollingHandler) HandleCallback(tenant *domain.Tenant, update tgbotapi.U
 		}
 	}
 
-	// مدیریت تسک‌ها (ادمین)
-	//if strings.HasPrefix(data, "admtask_") {
-	//	if !botHandlerTemp.IsSuperAdmin(chatID) && !botHandlerTemp.IsAdmin(chatID) {
-	//		return
-	//	}
-	//	parts := strings.Split(data, "_")
-	//	if len(parts) < 3 {
-	//		return
-	//	}
-	//	action := parts[1] // edit, cap, pen, toggle
-	//	taskID, _ := strconv.Atoi(parts[2])
-	//
-	//	task, err := h.TaskRepo.GetTaskByID(tenant.ID, uint(taskID))
-	//	if err != nil {
-	//		return
-	//	}
-	//	user, _ := h.UserRepo.GetUserByTelegramID(tenant.ID, chatID)
-
 	// مدیریت گیفت‌ها توسط ادمین
 	if strings.HasPrefix(data, "admgift_") {
 		if !botHandlerTemp.IsSuperAdmin(userID) && !botHandlerTemp.IsAdmin(userID) {
@@ -2062,20 +2059,35 @@ func (h *PollingHandler) HandleCallback(tenant *domain.Tenant, update tgbotapi.U
 		action := parts[1] // add, edit, cap, pen, toggle
 		user, _ := h.UserRepo.GetUserByTelegramID(tenant.ID, userID)
 
+		//if action == "add" {
+		//	_ = h.UserRepo.UpdateUserState(tenant.ID, user.ID, domain.StateAdminWaitNewTaskData)
+		//	h.SafeBot.SafeAnswerCallback(callback.ID, "فرم ثبت تسک جدید", false)
+		//	guideMsg := "➕ *افزودن تسک جدید*\n\n" +
+		//		"لطفاً اطلاعات تسک را در یک خط و با جداکننده `|` به فرمت زیر ارسال کنید:\n\n" +
+		//		"`عنوان | لینک هدف | نوع | ظرفیت | پاداش | جریمه`\n\n" +
+		//		"📌 *انواع مجاز:*\n" +
+		//		"• `auto_join` (عضویت کانال با بررسی خودکار)\n" +
+		//		"• `manual_proof` (تسک دستی با ارسال اسکرین‌شات)\n" +
+		//		"• `reaction` (تسک ری‌اکشن با تأخیر هوشمند)\n\n" +
+		//		"💡 *مثال تسک عضویت:*\n" +
+		//		"`عضویت در کانال حامی | @mychannel | auto_join | 500 | 10 | 20`\n\n" +
+		//		"💡 *مثال تسک اسکرین‌شات:*\n" +
+		//		"`ثبت نام در سایت | https://example.com | manual_proof | 100 | 50 | 0`"
+		//	msg := tgbotapi.NewMessage(chatID, guideMsg)
+		//	msg.ParseMode = "Markdown"
+		//	_, _ = h.SafeBot.Bot.Send(msg)
+		//	return
+		//}
+
 		if action == "add" {
-			_ = h.UserRepo.UpdateUserState(tenant.ID, user.ID, domain.StateAdminWaitNewTaskData)
-			h.SafeBot.SafeAnswerCallback(callback.ID, "فرم ثبت تسک جدید", false)
-			guideMsg := "➕ *افزودن تسک جدید*\n\n" +
-				"لطفاً اطلاعات تسک را در یک خط و با جداکننده `|` به فرمت زیر ارسال کنید:\n\n" +
-				"`عنوان | لینک هدف | نوع | ظرفیت | پاداش | جریمه`\n\n" +
-				"📌 *انواع مجاز:*\n" +
-				"• `auto_join` (عضویت کانال با بررسی خودکار)\n" +
-				"• `manual_proof` (تسک دستی با ارسال اسکرین‌شات)\n" +
-				"• `reaction` (تسک ری‌اکشن با تأخیر هوشمند)\n\n" +
-				"💡 *مثال تسک عضویت:*\n" +
-				"`عضویت در کانال حامی | @mychannel | auto_join | 500 | 10 | 20`\n\n" +
-				"💡 *مثال تسک اسکرین‌شات:*\n" +
-				"`ثبت نام در سایت | https://example.com | manual_proof | 100 | 50 | 0`"
+			// پاک کردن دیتای قبلی و رفتن به مرحله اول
+			_ = h.UserRepo.UpdateAdminTargets(tenant.ID, user.ID, 0, "", "")
+			_ = h.UserRepo.UpdateUserState(tenant.ID, user.ID, domain.StateAdminWaitTaskTitle)
+			h.SafeBot.SafeAnswerCallback(callback.ID, "مرحله ۱", false)
+
+			guideMsg := "➕ *ساخت تسک جدید (مرحله ۱ از ۶)*\n\n" +
+				"🏷 لطفاً **عنوان تسک** را بفرستید:\n" +
+				"*(مثال: عضویت در کانال حامی ۱، یا ثبت‌نام در صرافی)*"
 			msg := tgbotapi.NewMessage(chatID, guideMsg)
 			msg.ParseMode = "Markdown"
 			_, _ = h.SafeBot.Bot.Send(msg)

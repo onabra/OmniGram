@@ -592,6 +592,10 @@ func (h *BotHandler) HandleMessage(tenant *domain.Tenant, chatID int64, firstNam
 				tenant.DefaultTaskReward = val
 			case "taskpenalty":
 				tenant.DefaultTaskPenalty = val
+			case "minstars":
+				tenant.MinWithdrawStars = int(val)
+			case "maxstars":
+				tenant.MaxWithdrawStars = int(val)
 			}
 
 			_ = h.AdminRepo.UpdateTenantSetting(tenant)
@@ -1130,47 +1134,175 @@ func (h *BotHandler) HandleMessage(tenant *domain.Tenant, chatID int64, firstNam
 		}
 	}
 
-	if currentUser.State == domain.StateAdminWaitNewTaskData {
+	//if currentUser.State == domain.StateAdminWaitNewTaskData {
+	//	if text == backMainBtnText {
+	//		_ = h.UserRepo.UpdateUserState(tenant.ID, currentUser.ID, domain.StateNormal)
+	//	} else {
+	//		parts := strings.Split(text, "|")
+	//		if len(parts) < 6 {
+	//			_ = h.SafeBot.SendMessage(chatID, "❌ فرمت ارسالی ناقص است. لطفاً هر ۶ بخش را با علامت `|` از هم جدا کنید.")
+	//			return
+	//		}
+	//
+	//		title := strings.TrimSpace(parts[0])
+	//		targetLink := strings.TrimSpace(parts[1])
+	//		taskType := strings.TrimSpace(parts[2])
+	//		capacity, errCap := strconv.Atoi(strings.TrimSpace(parts[3]))
+	//		reward, errRew := strconv.ParseFloat(strings.TrimSpace(parts[4]), 64)
+	//		penalty, errPen := strconv.ParseFloat(strings.TrimSpace(parts[5]), 64)
+	//
+	//		if errCap != nil || errRew != nil || errPen != nil || capacity <= 0 {
+	//			_ = h.SafeBot.SendMessage(chatID, "❌ مقادیر ظرفیت، پاداش و جریمه باید عدد معتبر باشند.")
+	//			return
+	//		}
+	//
+	//		if taskType != "auto_join" && taskType != "manual_proof" && taskType != "reaction" {
+	//			_ = h.SafeBot.SendMessage(chatID, "❌ نوع تسک باید یکی از مقادیر `auto_join`، `manual_proof` یا `reaction` باشد.")
+	//			return
+	//		}
+	//
+	//		if taskType == "auto_join" {
+	//			resolved, err := ResolveChatID(targetLink)
+	//			if err != nil {
+	//				_ = h.SafeBot.SendMessage(chatID, "❌ برای تسک `auto_join`، لینک هدف باید یوزرنیم کانال (@...)، لینک عمومی یا آیدی عددی (-100...) معتبر باشد.")
+	//				return
+	//			}
+	//			targetLink = resolved
+	//		}
+	//
+	//		newTask := &domain.Task{
+	//			TenantID:      tenant.ID,
+	//			Title:         title,
+	//			TargetLink:    targetLink,
+	//			TaskType:      taskType,
+	//			Capacity:      capacity,
+	//			RewardType:    "point",
+	//			RewardAmount:  reward,
+	//			StayDuration:  24,
+	//			PenaltyAmount: penalty,
+	//			Status:        "ACTIVE",
+	//		}
+	//		_ = h.TaskRepo.CreateTask(newTask)
+	//
+	//		_ = h.SafeBot.SendMessage(chatID, fmt.Sprintf("✅ تسک «%s» با ظرفیت %d و پاداش %.0f امتیاز با موفقیت ایجاد و فعال شد.", title, capacity, reward))
+	//		_ = h.UserRepo.UpdateUserState(tenant.ID, currentUser.ID, domain.StateNormal)
+	//		return
+	//	}
+	//}
+
+	// --- سیستم مرحله به مرحله (Wizard) ساخت تسک جدید ---
+	if currentUser.State == domain.StateAdminWaitTaskTitle {
 		if text == backMainBtnText {
 			_ = h.UserRepo.UpdateUserState(tenant.ID, currentUser.ID, domain.StateNormal)
 		} else {
-			parts := strings.Split(text, "|")
-			if len(parts) < 6 {
-				_ = h.SafeBot.SendMessage(chatID, "❌ فرمت ارسالی ناقص است. لطفاً هر ۶ بخش را با علامت `|` از هم جدا کنید.")
+			_ = h.UserRepo.UpdateAdminTargets(tenant.ID, currentUser.ID, 0, text, "")
+			_ = h.UserRepo.UpdateUserState(tenant.ID, currentUser.ID, domain.StateAdminWaitTaskLink)
+			_ = h.SafeBot.SendMessage(chatID, "✅ عنوان ثبت شد.\n\n🔗 *مرحله ۲ از ۶: لینک هدف*\nلطفاً لینک کانال، گروه یا وب‌سایت مورد نظر را بفرستید:")
+			return
+		}
+	}
+
+	if currentUser.State == domain.StateAdminWaitTaskLink {
+		if text == backMainBtnText {
+			_ = h.UserRepo.UpdateUserState(tenant.ID, currentUser.ID, domain.StateNormal)
+		} else {
+			val := currentUser.AdminTargetSetting + "|" + text
+			_ = h.UserRepo.UpdateAdminTargets(tenant.ID, currentUser.ID, 0, val, "")
+			_ = h.UserRepo.UpdateUserState(tenant.ID, currentUser.ID, domain.StateAdminWaitTaskType)
+			_ = h.SafeBot.SendMessage(chatID, "✅ لینک ثبت شد.\n\n📌 *مرحله ۳ از ۶: نوع تسک*\nیکی از اعداد زیر را بفرستید:\n\n`1` = عضویت در تلگرام (ربات خودش چک میکنه)\n`2` = تسک سایت/گروه (کاربر باید اسکرین‌شات بفرسته)\n`3` = فقط کلیک/ری‌اکشن (با تاخیر هوشمند)")
+			return
+		}
+	}
+
+	if currentUser.State == domain.StateAdminWaitTaskType {
+		if text == backMainBtnText {
+			_ = h.UserRepo.UpdateUserState(tenant.ID, currentUser.ID, domain.StateNormal)
+		} else {
+			tType := "auto_join"
+			if text == "2" {
+				tType = "manual_proof"
+			} else if text == "3" {
+				tType = "reaction"
+			} else if text != "1" {
+				_ = h.SafeBot.SendMessage(chatID, "❌ فقط عدد 1، 2 یا 3 را بفرستید.")
+				return
+			}
+			val := currentUser.AdminTargetSetting + "|" + tType
+			_ = h.UserRepo.UpdateAdminTargets(tenant.ID, currentUser.ID, 0, val, "")
+			_ = h.UserRepo.UpdateUserState(tenant.ID, currentUser.ID, domain.StateAdminWaitTaskCapacity)
+			_ = h.SafeBot.SendMessage(chatID, "✅ نوع تسک ثبت شد.\n\n👥 *مرحله ۴ از ۶: ظرفیت تسک*\nچند نفر می‌توانند این تسک را انجام دهند؟ (فقط عدد، مثلاً: 500)")
+			return
+		}
+	}
+
+	if currentUser.State == domain.StateAdminWaitTaskCapacity {
+		if text == backMainBtnText {
+			_ = h.UserRepo.UpdateUserState(tenant.ID, currentUser.ID, domain.StateNormal)
+		} else {
+			_, err := strconv.Atoi(text)
+			if err != nil {
+				_ = h.SafeBot.SendMessage(chatID, "❌ فقط عدد معتبر بفرستید.")
+				return
+			}
+			val := currentUser.AdminTargetSetting + "|" + text
+			_ = h.UserRepo.UpdateAdminTargets(tenant.ID, currentUser.ID, 0, val, "")
+			_ = h.UserRepo.UpdateUserState(tenant.ID, currentUser.ID, domain.StateAdminWaitTaskReward)
+			_ = h.SafeBot.SendMessage(chatID, "✅ ظرفیت ثبت شد.\n\n🎁 *مرحله ۵ از ۶: پاداش کاربر*\nبه کاربری که تسک را انجام داد چند امتیاز پاداش بدهم؟ (مثلاً: 10)")
+			return
+		}
+	}
+
+	if currentUser.State == domain.StateAdminWaitTaskReward {
+		if text == backMainBtnText {
+			_ = h.UserRepo.UpdateUserState(tenant.ID, currentUser.ID, domain.StateNormal)
+		} else {
+			_, err := strconv.ParseFloat(text, 64)
+			if err != nil {
+				_ = h.SafeBot.SendMessage(chatID, "❌ فقط عدد معتبر بفرستید.")
+				return
+			}
+			val := currentUser.AdminTargetSetting + "|" + text
+			_ = h.UserRepo.UpdateAdminTargets(tenant.ID, currentUser.ID, 0, val, "")
+			_ = h.UserRepo.UpdateUserState(tenant.ID, currentUser.ID, domain.StateAdminWaitTaskPenalty)
+			_ = h.SafeBot.SendMessage(chatID, "✅ پاداش ثبت شد.\n\n⚖️ *مرحله آخر: جریمه لفت دادن*\nاگر کاربر لفت داد، چند امتیاز ازش کسر کنم؟ (اگر تسک شما عضویت تلگرام نیست، عدد 0 را بفرستید)")
+			return
+		}
+	}
+
+	if currentUser.State == domain.StateAdminWaitTaskPenalty {
+		if text == backMainBtnText {
+			_ = h.UserRepo.UpdateUserState(tenant.ID, currentUser.ID, domain.StateNormal)
+		} else {
+			penalty, err := strconv.ParseFloat(text, 64)
+			if err != nil {
+				_ = h.SafeBot.SendMessage(chatID, "❌ فقط عدد معتبر بفرستید.")
 				return
 			}
 
-			title := strings.TrimSpace(parts[0])
-			targetLink := strings.TrimSpace(parts[1])
-			taskType := strings.TrimSpace(parts[2])
-			capacity, errCap := strconv.Atoi(strings.TrimSpace(parts[3]))
-			reward, errRew := strconv.ParseFloat(strings.TrimSpace(parts[4]), 64)
-			penalty, errPen := strconv.ParseFloat(strings.TrimSpace(parts[5]), 64)
+			// استخراج اطلاعات ۵ مرحله‌ی قبلی
+			parts := strings.Split(currentUser.AdminTargetSetting, "|")
+			title := parts[0]
+			link := parts[1]
+			tType := parts[2]
+			capacity, _ := strconv.Atoi(parts[3])
+			reward, _ := strconv.ParseFloat(parts[4], 64)
 
-			if errCap != nil || errRew != nil || errPen != nil || capacity <= 0 {
-				_ = h.SafeBot.SendMessage(chatID, "❌ مقادیر ظرفیت، پاداش و جریمه باید عدد معتبر باشند.")
-				return
-			}
-
-			if taskType != "auto_join" && taskType != "manual_proof" && taskType != "reaction" {
-				_ = h.SafeBot.SendMessage(chatID, "❌ نوع تسک باید یکی از مقادیر `auto_join`، `manual_proof` یا `reaction` باشد.")
-				return
-			}
-
-			if taskType == "auto_join" {
-				resolved, err := ResolveChatID(targetLink)
+			// اعتبارسنجی لینک برای حالت عضویت خودکار
+			if tType == "auto_join" {
+				resolved, err := ResolveChatID(link)
 				if err != nil {
-					_ = h.SafeBot.SendMessage(chatID, "❌ برای تسک `auto_join`، لینک هدف باید یوزرنیم کانال (@...)، لینک عمومی یا آیدی عددی (-100...) معتبر باشد.")
+					_ = h.SafeBot.SendMessage(chatID, "❌ لینک ارسالی در مرحله ۲ برای حالت عضویت خودکار نامعتبر بود. فرآیند لغو شد. لطفاً مجدداً تلاش کنید.")
+					_ = h.UserRepo.UpdateUserState(tenant.ID, currentUser.ID, domain.StateNormal)
 					return
 				}
-				targetLink = resolved
+				link = resolved
 			}
 
 			newTask := &domain.Task{
 				TenantID:      tenant.ID,
 				Title:         title,
-				TargetLink:    targetLink,
-				TaskType:      taskType,
+				TargetLink:    link,
+				TaskType:      tType,
 				Capacity:      capacity,
 				RewardType:    "point",
 				RewardAmount:  reward,
@@ -1180,7 +1312,7 @@ func (h *BotHandler) HandleMessage(tenant *domain.Tenant, chatID int64, firstNam
 			}
 			_ = h.TaskRepo.CreateTask(newTask)
 
-			_ = h.SafeBot.SendMessage(chatID, fmt.Sprintf("✅ تسک «%s» با ظرفیت %d و پاداش %.0f امتیاز با موفقیت ایجاد و فعال شد.", title, capacity, reward))
+			_ = h.SafeBot.SendMessage(chatID, fmt.Sprintf("🎉 تسک «%s» با موفقیت ساخته شد و الان در بخش وظایف کاربران فعال است!", title))
 			_ = h.UserRepo.UpdateUserState(tenant.ID, currentUser.ID, domain.StateNormal)
 			return
 		}
@@ -1435,8 +1567,13 @@ func (h *BotHandler) HandleMessage(tenant *domain.Tenant, chatID int64, firstNam
 		totalRefs := refStats.LeagueTotal + refStats.DrawTotal + refStats.StarsTotal + refStats.GiftTotal + refStats.PointTotal + refStats.WalletTotal
 		taskCount := h.TaskRepo.GetUserApprovedTaskCount(tenant.ID, currentUser.ID)
 
+		//if totalRefs < 3 || taskCount < 2 {
+		//	msgText := fmt.Sprintf("❌ *عدم دسترسی*\n\nبرای برداشت استارز یا گیفت باید حداقل شروط زیر را داشته باشید:\n\n👥 رفرال تایید شده: ۳ نفر (شما: %d)\n✅ تسک‌های انجام شده: ۲ تسک (شما: %d)", totalRefs, taskCount)
+		//	_ = h.SafeBot.SendMessage(chatID, msgText)
+		//	return
+		//}
 		if totalRefs < 3 || taskCount < 2 {
-			msgText := fmt.Sprintf("❌ *عدم دسترسی*\n\nبرای برداشت استارز یا گیفت باید حداقل شروط زیر را داشته باشید:\n\n👥 رفرال تایید شده: ۳ نفر (شما: %d)\n✅ تسک‌های انجام شده: ۲ تسک (شما: %d)", totalRefs, taskCount)
+			msgText := fmt.Sprintf("❌ *کاربر گرامی*\n\nبرای ثبت درخواست برداشت استارز یا گیفت، انجام موارد زیر الزامی است:\n\n1️⃣ باید حداقل **۳ رفرال** تایید شده داشته باشید. (شما: %d)\n2️⃣ باید حداقل **۲ تسک** انجام داده باشید. (شما: %d)", totalRefs, taskCount)
 			_ = h.SafeBot.SendMessage(chatID, msgText)
 			return
 		}
