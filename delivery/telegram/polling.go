@@ -173,8 +173,22 @@ func (h *PollingHandler) processUpdateWithRecovery(update tgbotapi.Update) {
 		//	botHandler.HandleMessage(tenant, chatID, update.Message.Text, lang)
 		//}
 
+		//if update.Message.Command() == "start" {
+		//	botHandler.HandleStart(tenant, chatID, lang, update.Message.Text)
+		//} else if update.Message.Command() == "myid" {
+		//	// 👈 دریافت آیدی عددی با دستور /myid
+		//	msg := tgbotapi.NewMessage(chatID, fmt.Sprintf("🆔 آیدی عددی تلگرام شما:\n\n`%d`", update.Message.From.ID))
+		//	msg.ParseMode = "Markdown"
+		//	msg.ReplyToMessageID = update.Message.MessageID
+		//	_, _ = h.SafeBot.Bot.Send(msg)
+		//} else if update.Message.Photo != nil {
+		//	botHandler.HandlePhoto(tenant, update.Message, lang)
+		//} else if update.Message.Text != "" {
+		//	botHandler.HandleMessage(tenant, chatID, update.Message.Text, lang)
+		//}
+
 		if update.Message.Command() == "start" {
-			botHandler.HandleStart(tenant, chatID, lang, update.Message.Text)
+			botHandler.HandleStart(tenant, chatID, update.Message.From.FirstName, lang, update.Message.Text)
 		} else if update.Message.Command() == "myid" {
 			// 👈 دریافت آیدی عددی با دستور /myid
 			msg := tgbotapi.NewMessage(chatID, fmt.Sprintf("🆔 آیدی عددی تلگرام شما:\n\n`%d`", update.Message.From.ID))
@@ -184,7 +198,7 @@ func (h *PollingHandler) processUpdateWithRecovery(update tgbotapi.Update) {
 		} else if update.Message.Photo != nil {
 			botHandler.HandlePhoto(tenant, update.Message, lang)
 		} else if update.Message.Text != "" {
-			botHandler.HandleMessage(tenant, chatID, update.Message.Text, lang)
+			botHandler.HandleMessage(tenant, chatID, update.Message.From.FirstName, update.Message.Text, lang)
 		}
 	}
 }

@@ -65,7 +65,7 @@ func (s *ReferralService) ProcessReferral(tenant *domain.Tenant, referrerID uint
 	}
 
 	if s.BotClient != nil {
-		msg := fmt.Sprintf("👤 کاربر %s از طریق لینک شما وارد ربات شد.\n⏳ پس از عضویت در کانال‌های حامی، پاداش شما واریز خواهد شد.", referredUser.FirstName)
+		msg := fmt.Sprintf("👤 کاربر %s (آیدی: `%d`) از طریق لینک شما وارد ربات شد.\n⏳ پس از تأیید نهایی، پاداش شما واریز خواهد شد.", referredUser.FirstName, referredUser.TelegramID)
 		_ = s.BotClient.SendMessage(referrerUser.TelegramID, msg)
 	}
 
@@ -89,16 +89,33 @@ func (s *ReferralService) ApproveReferral(tenant *domain.Tenant, referredUserID 
 		return err
 	}
 
+	// گرفتن اطلاعات کاربری که تازه عضو شده تا آیدی او را به معرف نشان دهیم
+	referredUser, _ := s.UserRepo.GetUserByID(tenant.ID, referral.ReferredID)
+	refInfo := "نامشخص"
+	if referredUser != nil {
+		refInfo = fmt.Sprintf("آیدی: `%d`", referredUser.TelegramID)
+	}
+
 	// ضریب پاداش (۱۰۰٪ برای کاربر جدید، ۵۰٪ برای کاربر غیرفعال بیش از ۱۰ روز طبق معماری)
 	multiplier := 1.0
 	if referral.IsReactivation {
 		multiplier = 0.5
 	}
 
-	successMsg := "✅ یک زیرمجموعه جدید برای شما تایید شد:\n\n"
+	successMsg := fmt.Sprintf("✅ یک زیرمجموعه جدید (%s) برای شما تأیید شد:\n\n", refInfo)
 	if referral.IsReactivation {
-		successMsg = "♻️ یک کاربر غیرفعال (بیش از ۱۰ روز خاموشی) با لینک شما به ربات بازگشت (۵۰٪ پاداش):\n\n"
+		successMsg = fmt.Sprintf("♻️ کاربر بازگشتی (%s) پس از ۱۰ روز خاموشی با لینک شما وارد شد (۵۰٪ پاداش):\n\n", refInfo)
 	}
+	// ضریب پاداش (۱۰۰٪ برای کاربر جدید، ۵۰٪ برای کاربر غیرفعال بیش از ۱۰ روز طبق معماری)
+	//multiplier := 1.0
+	//if referral.IsReactivation {
+	//	multiplier = 0.5
+	//}
+	//
+	//successMsg := "✅ یک زیرمجموعه جدید برای شما تایید شد:\n\n"
+	//if referral.IsReactivation {
+	//	successMsg = "♻️ یک کاربر غیرفعال (بیش از ۱۰ روز خاموشی) با لینک شما به ربات بازگشت (۵۰٪ پاداش):\n\n"
+	//}
 
 	switch referral.ReferralType {
 	case "league":

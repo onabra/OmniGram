@@ -57,6 +57,7 @@ func (h *PollingHandler) HandleChatMemberUpdate(tenant *domain.Tenant, chatMembe
 		// ۲. بررسی جریمه معرف در صورت لفت دادن زیرمجموعه از کانال‌های جوین اجباری
 		referral, err := h.RefRepo.GetReferrer(tenant.ID, user.ID)
 		if err == nil && referral != nil {
+			var penaltyToman float64 = 0
 			var penaltyPoint float64 = 0
 			var penaltyStars float64 = 0
 
@@ -67,9 +68,12 @@ func (h *PollingHandler) HandleChatMemberUpdate(tenant *domain.Tenant, chatMembe
 				penaltyPoint = -1.0
 			case "gift":
 				penaltyPoint = -2.0
+			case "wallet":
+				penaltyToman = -2000.0 // کسر پاداش کیف پول
+
 			}
 
-			_ = h.UserRepo.AddBalances(tenant.ID, referral.ReferrerID, 0, penaltyPoint, penaltyStars)
+			_ = h.UserRepo.AddBalances(tenant.ID, referral.ReferrerID, penaltyToman, penaltyPoint, penaltyStars)
 
 			referrerUser, err := h.UserRepo.GetUserByID(tenant.ID, referral.ReferrerID)
 			if err == nil && h.SafeBot != nil {

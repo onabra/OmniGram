@@ -18,7 +18,7 @@ func (h *PollingHandler) HandleCallback(tenant *domain.Tenant, update tgbotapi.U
 	chatID := callback.Message.Chat.ID
 	userID := callback.From.ID
 	messageID := callback.Message.MessageID
-	h.SafeBot.SafeAnswerCallback(callback.ID, "", false)
+	//h.SafeBot.SafeAnswerCallback(callback.ID, "", false)
 
 	// ساخت موقت BotHandler برای استفاده از متد CheckForceJoin
 	botHandlerTemp := &BotHandler{
@@ -1854,11 +1854,21 @@ func (h *PollingHandler) HandleCallback(tenant *domain.Tenant, update tgbotapi.U
 		//	return
 		//}
 
+		//if admAction == "refs" {
+		//	stats, _ := h.RefRepo.GetReferralStats(tenant.ID, uint(targetID))
+		//	h.SafeBot.SafeAnswerCallback(callback.ID, "آمار رفرال کاربر استخراج شد", false)
+		//	msg := tgbotapi.NewMessage(chatID, fmt.Sprintf("📊 *آمار رفرال‌های ۴ گانه این کاربر*\n\n🏆 لیگ: %d\n🎰 قرعه‌کشی: %d\n⭐ استارز: %d\n🎁 گیفت: %d\n💤 غیرفعال‌ها: %d",
+		//		stats.LeagueTotal, stats.DrawTotal, stats.StarsTotal, stats.GiftTotal, stats.InactiveUsers))
+		//	msg.ParseMode = "Markdown"
+		//	_, _ = h.SafeBot.Bot.Send(msg)
+		//	return
+		//}
+
 		if admAction == "refs" {
 			stats, _ := h.RefRepo.GetReferralStats(tenant.ID, uint(targetID))
 			h.SafeBot.SafeAnswerCallback(callback.ID, "آمار رفرال کاربر استخراج شد", false)
-			msg := tgbotapi.NewMessage(chatID, fmt.Sprintf("📊 *آمار رفرال‌های ۴ گانه این کاربر*\n\n🏆 لیگ: %d\n🎰 قرعه‌کشی: %d\n⭐ استارز: %d\n🎁 گیفت: %d\n💤 غیرفعال‌ها: %d",
-				stats.LeagueTotal, stats.DrawTotal, stats.StarsTotal, stats.GiftTotal, stats.InactiveUsers))
+			msg := tgbotapi.NewMessage(chatID, fmt.Sprintf("📊 *آمار کامل رفرال‌های این کاربر*\n\n🏆 لیگ: %d\n🎰 قرعه‌کشی: %d\n⭐ استارز: %d\n🎁 گیفت: %d\n💎 امتیاز: %d\n💰 کیف‌پول: %d\n💤 غیرفعال‌ها: %d",
+				stats.LeagueTotal, stats.DrawTotal, stats.StarsTotal, stats.GiftTotal, stats.PointTotal, stats.WalletTotal, stats.InactiveUsers))
 			msg.ParseMode = "Markdown"
 			_, _ = h.SafeBot.Bot.Send(msg)
 			return

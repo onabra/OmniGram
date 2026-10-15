@@ -94,7 +94,7 @@ type BotHandler struct {
 //}
 
 // HandleStart مدیریت دستور /start و ثبت اولیه رفرال پیش از قفل جوین اجباری
-func (h *BotHandler) HandleStart(tenant *domain.Tenant, chatID int64, lang string, text string) {
+func (h *BotHandler) HandleStart(tenant *domain.Tenant, chatID int64, firstName string, lang string, text string) {
 	isNewUser := false
 	user, err := h.UserRepo.GetUserByTelegramID(tenant.ID, chatID)
 	if err != nil || user == nil {
@@ -102,7 +102,7 @@ func (h *BotHandler) HandleStart(tenant *domain.Tenant, chatID int64, lang strin
 		user = &domain.User{
 			TenantID:       tenant.ID,
 			TelegramID:     chatID,
-			FirstName:      "کاربر",
+			FirstName:      firstName,
 			Language:       lang,
 			LastActiveDate: time.Now(),
 			State:          domain.StateNormal,
@@ -162,7 +162,7 @@ func (h *BotHandler) HandleStart(tenant *domain.Tenant, chatID int64, lang strin
 }
 
 // HandleMessage مدیریت پیام‌های متنی ارسالی از سمت کاربر
-func (h *BotHandler) HandleMessage(tenant *domain.Tenant, chatID int64, text string, lang string) {
+func (h *BotHandler) HandleMessage(tenant *domain.Tenant, chatID int64, firstName string, text string, lang string) {
 	// قفل جوین اجباری
 	if !h.CheckForceJoin(tenant, chatID) {
 		return
@@ -223,7 +223,7 @@ func (h *BotHandler) HandleMessage(tenant *domain.Tenant, chatID int64, text str
 		currentUser = &domain.User{
 			TenantID:       tenant.ID,
 			TelegramID:     chatID,
-			FirstName:      "کاربر",
+			FirstName:      firstName,
 			Language:       lang,
 			LastActiveDate: time.Now(),
 			State:          domain.StateNormal,
@@ -1747,28 +1747,6 @@ func (h *BotHandler) HandleMessage(tenant *domain.Tenant, chatID int64, text str
 			}
 
 			destTelegramID, errID := strconv.ParseInt(parts[1], 10, 64)
-			//default:
-			//	if strings.HasPrefix(text, "انتقال") && currentUser != nil && h.WalletService != nil {
-			//		// پردازش لینک‌های رفرال ۴ گانه مستقل (در صورت وجود)
-			//		parts := strings.Split(text, " ")
-			//		if len(parts) > 1 {
-			//			payload := parts[1] // نمونه: league_123456
-			//			payloadParts := strings.Split(payload, "_")
-			//
-			//			if len(payloadParts) == 2 {
-			//				refType := payloadParts[0] // باید یکی از این ۴ مقدار باشد: league, draw, point, wallet
-			//				referrerID, err := strconv.ParseUint(payloadParts[1], 10, 32)
-			//
-			//				if err == nil && (refType == "league" || refType == "draw" || refType == "point" || refType == "wallet") {
-			//					if h.ReferralService != nil {
-			//						// ثبت رفرال به صورت معلق (PENDING)
-			//						_ = h.ReferralService.ProcessReferral(tenant.ID, uint(referrerID), chatID, refType)
-			//					}
-			//				}
-			//			}
-			//		}
-			//
-			//		destTelegramID, errID := strconv.ParseInt(parts[1], 10, 64)
 			amount, errAmount := strconv.ParseFloat(parts[2], 64)
 			currency := strings.ToUpper(parts[3])
 
@@ -1794,6 +1772,41 @@ func (h *BotHandler) HandleMessage(tenant *domain.Tenant, chatID int64, text str
 		}
 	}
 }
+
+//default:
+//	if strings.HasPrefix(text, "انتقال") && currentUser != nil && h.WalletService != nil {
+//		parts := strings.Fields(text)
+//		if len(parts) != 4 {
+//			_ = h.SafeBot.SendMessage(chatID, "❌ فرمت دستور اشتباه است. نمونه صحیح:\n`انتقال 123456789 10 POINT`")
+//			return
+//		}
+//
+//		destTelegramID, errID := strconv.ParseInt(parts[1], 10, 64)
+//		amount, errAmount := strconv.ParseFloat(parts[2], 64)
+//		currency := strings.ToUpper(parts[3])
+//
+//		if errID != nil || errAmount != nil || amount <= 0 {
+//			_ = h.SafeBot.SendMessage(chatID, "مقادیر وارد شده معتبر نیست. آیدی و مبلغ باید عدد باشند.")
+//			return
+//		}
+//
+//		// اگر کارمزد در دیتابیس تنظیم نشده بود، پیش‌فرض ۵٪ لحاظ شود
+//		feePercent := tenant.TransferFeePercent
+//		if feePercent <= 0 {
+//			feePercent = 5.0
+//		}
+//
+//		err := h.WalletService.TransferBalance(tenant.ID, currentUser.ID, destTelegramID, amount, currency, feePercent)
+//		if err != nil {
+//			_ = h.SafeBot.SendMessage(chatID, "❌ خطا: "+err.Error())
+//		} else {
+//			successMsg := fmt.Sprintf("✅ مبلغ %.2f %s با موفقیت پس از کسر کارمزد انتقال یافت.", amount, currency)
+//			_ = h.SafeBot.SendMessage(chatID, successMsg)
+//		}
+//		return
+//	}
+//	}
+//}
 
 // IsSuperAdmin بررسی اینکه آیا کاربر سوپرادمین است
 func (h *BotHandler) IsSuperAdmin(telegramID int64) bool {

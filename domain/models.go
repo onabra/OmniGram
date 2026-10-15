@@ -151,7 +151,7 @@ type User struct {
 // Referral (سیستم رفرال‌های ۴ گانه)
 type Referral struct {
 	ID             uint   `gorm:"primaryKey"`
-	TenantID       uint   `gorm:"index"`
+	TenantID       uint   `gorm:"uniqueIndex:idx_unique_ref;index"`
 	ReferrerID     uint   `gorm:"uniqueIndex:idx_unique_ref;index"` // شناسه کاربری که دعوت کرده است (معرف)
 	ReferredID     uint   `gorm:"uniqueIndex:idx_unique_ref;index"` // شناسه کاربر دعوت شده (زیرمجموعه)
 	ReferralType   string `gorm:"uniqueIndex:idx_unique_ref"`       // نوع لینک: استارز، گیفت، لیگ، یا قرعه‌کشی
